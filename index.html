@@ -1,9 +1,11 @@
+<!-- --- START OF FILE index.html --- -->
+
 <!DOCTYPE html>
 <html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production Management System (Channel Support)</title>
+    <title>Production Management System (Group Inside)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -11,7 +13,7 @@
         :root {
             --primary: #007bff; --success: #28a745; --info: #17a2b8; --danger: #dc3545;
             --warning: #ffc107; --dark: #343a40; --light: #f8f9fa; --shadow: 0 4px 12px rgba(0,0,0,0.1);
-            --orange: #fd7e14; --purple: #6610f2; --teal: #20c997;
+            --orange: #fd7e14; --purple: #6610f2; --teal: #20c997; --pink: #e83e8c;
         }
         body { font-family: 'Kanit', sans-serif; margin: 0; background: #f0f2f5; color: #333; }
         .navbar { background: var(--dark); padding: 0 20px; display: flex; align-items: center; height: 65px; position: sticky; top: 0; z-index: 1000; }
@@ -38,8 +40,6 @@
         .stat-card.delivered .count { color: var(--success); }
         .stat-card.pending-main { border-left-color: var(--orange); }
         .stat-card.pending-main .count { color: var(--orange); }
-        
-        /* เพิ่มสีสำหรับช่องทาง */
         .stat-card.channel { border-left-color: var(--teal); }
         .stat-card.channel .count { color: var(--teal); }
 
@@ -79,6 +79,33 @@
         .active-detail { display: block; }
         .status-tag { display: inline-flex; align-items: center; background: #e9ecef; padding: 5px 12px; border-radius: 20px; font-size: 0.85em; margin: 5px 5px 0 0; }
         .status-tag span { cursor: pointer; margin-left: 8px; color: var(--danger); font-weight: bold; }
+
+        /* CSS สำหรับ Group ภายใน List */
+        .cat-group-header {
+            color: #d63384; /* สีชมพูเข้ม/แดง */
+            font-weight: 600;
+            font-size: 0.95em;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .cat-group-header:first-child { margin-top: 0; }
+        .cat-badge {
+            background-color: #d63384;
+            color: white;
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            min-width: 20px;
+            text-align: center;
+        }
+        .item-row {
+            padding-left: 15px;
+            margin-bottom: 4px;
+            color: #444;
+        }
     </style>
 </head>
 <body>
@@ -129,7 +156,7 @@
                     <!-- ส่วนแสดงผลหลัก -->
                     <div id="dash-main-summary" class="dashboard-grid"></div>
 
-                    <!-- 🟢 เพิ่มส่วนแสดงผลแยกตามช่องทาง -->
+                    <!-- แยกตามช่องทาง -->
                     <h2 style="margin-top: 30px;">🛒 แยกตามช่องทาง (งานค้าง):</h2>
                     <div id="dash-channel-cards" class="dashboard-grid"></div>
 
@@ -140,7 +167,7 @@
 
                 <div style="margin-top: 40px; border-top: 2px solid #ddd; padding-top: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>📦 รายการบิลค้างผลิต</h2>
+                        <h2>📦 รายการบิลค้างผลิต (Grouped)</h2>
                         <button class="btn btn-danger" onclick="clearAllDashStatuses()">ล้างสถานะทั้งหมด</button>
                     </div>
                     <div id="dash-list-container" style="margin-top: 15px;"></div>
@@ -222,7 +249,7 @@
         }
         const getVal = (row, names) => {
             for (let n of names) {
-                let key = Object.keys(row).find(k => k.trim() === n);
+                let key = Object.keys(row).find(k => k.trim().toLowerCase() === n.toLowerCase());
                 if (key !== undefined) return row[key];
             }
             return '';
@@ -288,7 +315,6 @@
             const channelStats = {};
             pendingData.forEach(r => {
                 const id = String(getVal(r, ['เลขบิล', 'Order ID']));
-                // ดึงตัวอักษรหน้าบิล เช่น FBTR, LZTR, SPTR
                 const chan = (id.match(/^[A-Za-z]+/) || ['OTHER'])[0].toUpperCase();
                 
                 if (!channelStats[chan]) channelStats[chan] = { bills: new Set(), items: 0 };
@@ -296,7 +322,6 @@
                 channelStats[chan].items += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product']));
             });
 
-            // สร้างการ์ดแสดงผลช่องทาง
             document.getElementById('dash-channel-cards').innerHTML = Object.entries(channelStats).map(([chan, d]) => `
                 <div class="stat-card channel">
                     <h3>${chan} (ค้างผลิต)</h3>
@@ -304,6 +329,8 @@
                     <div class="sub">${Math.ceil(d.items)} รายการ</div>
                 </div>
             `).join('');
+
+            // ❌ ส่วน Category Card ถูกลบออกตามคำขอ
 
             // 3. คำนวณแยกตามสถานะ (Status Tags)
             const statusStats = {};
@@ -334,16 +361,53 @@
             }, {});
             const listCont = document.getElementById('dash-list-container');
             listCont.innerHTML = '';
+            
             for (let chan in grouped) {
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'channel-group';
                 groupDiv.innerHTML = `<div class="channel-header" onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display==='none'?'block':'none')">${chan} <span>${Object.keys(grouped[chan]).length} บิล ▼</span></div><div class="channel-body" style="display:block;"></div>`;
                 const body = groupDiv.querySelector('.channel-body');
+                
                 for (let billId in grouped[chan]) {
                     const items = grouped[chan][billId];
                     const saved = localStorage.getItem(`dash-s-${billId}`) || '';
+                    
+                    // 🟢 GROUP ITEMS BY CATEGORY INSIDE BILL
+                    const itemsByCat = {};
+                    const categoriesSet = new Set();
+                    
+                    items.forEach(i => {
+                        let cat = getVal(i, ['หมวดหมู่', 'Category', 'Group']) || 'อื่นๆ (Other)';
+                        categoriesSet.add(cat);
+                        if (!itemsByCat[cat]) itemsByCat[cat] = [];
+                        itemsByCat[cat].push(i);
+                    });
+                    
+                    const catTags = [...categoriesSet].join(', '); // For display next to Bill ID
+
+                    let innerDetailsHtml = '';
+                    // Loop ผ่านแต่ละหมวดหมู่เพื่อสร้าง Group
+                    for (const [catName, catItems] of Object.entries(itemsByCat)) {
+                        innerDetailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${catItems.length}</span></div>`;
+                        catItems.forEach(i => {
+                            innerDetailsHtml += `<div class="item-row">• ${getVal(i, ['ชื่อสินค้า', 'Product'])} <small style="color:#666">(${getVal(i, ['รายละเอียดสินค้า', 'Description'])})</small></div>`;
+                        });
+                    }
+
                     const row = document.createElement('div');
-                    row.innerHTML = `<div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')"><span><strong>${billId}</strong></span><select onchange="updateBillStatus('${billId}', this.value)" onclick="event.stopPropagation()"><option value="">-- ระบุสถานะ --</option>${customStatuses.map(s => `<option value="${s}" ${s===saved?'selected':''}>${s}</option>`).join('')}</select></div><div class="invoice-details">${items.map(i => `<div>• ${getVal(i, ['ชื่อสินค้า', 'Product'])} <small style="color:#666">(${getVal(i, ['รายละเอียดสินค้า', 'Description'])})</small></div>`).join('')}</div>`;
+                    row.innerHTML = `
+                        <div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')">
+                            <div style="flex:1">
+                                <strong>${billId}</strong> 
+                                ${catTags ? `<small style="background:#f0f0f0; padding:2px 6px; border-radius:4px; margin-left:10px; color:#888;">${catTags}</small>` : ''}
+                            </div>
+                            <select onchange="updateBillStatus('${billId}', this.value)" onclick="event.stopPropagation()">
+                                <option value="">-- ระบุสถานะ --</option>${customStatuses.map(s => `<option value="${s}" ${s===saved?'selected':''}>${s}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="invoice-details">
+                            ${innerDetailsHtml}
+                        </div>`;
                     body.appendChild(row);
                 }
                 listCont.appendChild(groupDiv);
@@ -358,7 +422,6 @@
             });
         };
 
-        // 🟢 แก้ไขฟังก์ชัน Copy Summary ให้รวมช่องทาง
         window.copyFullSummary = () => {
             let text = `📋 สรุปงานผลิตวันที่ ${new Date().toLocaleDateString('th-TH')}\n`;
             
@@ -368,14 +431,25 @@
             // 2. สรุปแยกตามช่องทาง
             text += `\n🛒 แยกตามช่องทาง (งานค้าง):\n`;
             document.querySelectorAll('#dash-channel-cards .stat-card').forEach(c => {
-                 // ดึงชื่อช่องทาง ตัดคำว่า (ค้างผลิต) ออกเพื่อความสั้นกระชับ
                 let chanName = c.querySelector('h3').innerText.replace(' (ค้างผลิต)', '');
                 let bills = c.querySelector('.count').innerText;
                 let items = c.querySelector('.sub').innerText;
                 text += `- ${chanName}: ${bills} (${items})\n`;
             });
 
-            // 3. สรุปสถานะ
+            // 3. สรุปแยกตามหมวดหมู่ (คำนวณสดเพราะไม่มีการ์ดแล้ว)
+            text += `\n🗂️ แยกตามหมวดหมู่:\n`;
+            const catSummary = {};
+            pendingData.forEach(r => {
+                let cat = getVal(r, ['หมวดหมู่', 'Category', 'Group']) || 'ไม่ระบุ';
+                if(!catSummary[cat]) catSummary[cat] = 0;
+                catSummary[cat]++;
+            });
+            Object.entries(catSummary).forEach(([cat, count]) => {
+                 text += `- ${cat}: ${count} รายการ\n`;
+            });
+
+            // 4. สรุปสถานะ
             text += `\n📍 แยกตามสถานะ:\n`;
             document.querySelectorAll('#dash-status-cards .stat-card').forEach(c => text += `- ${c.querySelector('h3').innerText}: ${c.querySelector('.count').innerText} (${c.querySelector('.sub').innerText})\n`);
             
