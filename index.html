@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production & KPI System (Count Alert)</title>
+    <title>Production & KPI System (Enhanced Copy)</title>
     <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -135,6 +135,7 @@
                         <div style="display: flex; gap: 10px;">
                             <button class="btn btn-warning" onclick="loadDashboardDates()">🔄 รีเฟรช</button>
                             <button class="btn btn-info" onclick="exportDashboardPNG()">📸 บันทึกภาพ</button>
+                            <button class="btn btn-warning" onclick="copyFullSummary()">📋 คัดลอกสรุป</button>
                         </div>
                     </div>
                     
@@ -278,6 +279,14 @@
             document.getElementById('page-' + pageId).classList.add('active');
         }
 
+        const getChannel = (id) => {
+            if(!id) return 'OTHER';
+            const strId = String(id).trim();
+            if(strId.includes('-')) return strId.split('-')[0].toUpperCase();
+            const match = strId.match(/^[A-Za-z]+/);
+            return match ? match[0].toUpperCase() : 'OTHER';
+        };
+
         const getCol = (row, candidates) => {
             for (let n of candidates) {
                 let key = Object.keys(row).find(k => k.trim().toLowerCase() === n.toLowerCase());
@@ -285,6 +294,8 @@
             }
             return '';
         };
+
+        const getItemWeight = (name) => 1; // Default count as 1
 
         function readExcelFile(file) {
             return new Promise((resolve, reject) => {
@@ -379,7 +390,8 @@
                 const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 
                 sheetData.forEach(row => {
-                    const billId = String(getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID'])).trim();
+                    const rawId = getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID']);
+                    const billId = String(rawId).trim();
                     
                     if(billId && billId !== 'undefined' && billId !== '') {
                         const excelStatus = String(getCol(row, ['สถานะ', 'Status', 'Delivery Status']) || '');
@@ -425,7 +437,6 @@
             }
 
             if(upsertList.length > 0 && db) {
-                // Calculate Totals for Alert
                 let totalBills = upsertList.length;
                 let totalItems = upsertList.reduce((sum, item) => sum + item.items.length, 0);
 
@@ -436,7 +447,6 @@
                     if(error) console.error('Upload Error', error);
                 }
                 
-                // Show Detailed Alert
                 alert(`✅ นำเข้าข้อมูลเรียบร้อย!\n📄 จำนวนบิล: ${totalBills} บิล\n📦 จำนวนรายการสินค้า: ${totalItems} รายการ`);
                 
                 await loadDashboardDates();
@@ -480,7 +490,7 @@
             
             const channelStats = {};
             pendingData.forEach(r => {
-                const chan = (r.order_id.match(/^[A-Za-z]+/) || ['OTHER'])[0].toUpperCase();
+                const chan = getChannel(r.order_id);
                 if (!channelStats[chan]) channelStats[chan] = { bills: 0, items: 0 };
                 channelStats[chan].bills++;
                 channelStats[chan].items += r.items.length;
@@ -505,7 +515,7 @@
 
         function renderBillList(data) {
             const grouped = data.reduce((acc, r) => {
-                const chan = (r.order_id.match(/^[A-Za-z]+/) || ['OTHER'])[0].toUpperCase();
+                const chan = getChannel(r.order_id);
                 if (!acc[chan]) acc[chan] = [];
                 acc[chan].push(r);
                 return acc;
@@ -610,8 +620,60 @@
         window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production-${new Date().toLocaleDateString('th-TH')}.png`; link.href = canvas.toDataURL(); link.click(); }); };
         window.exportKPIPNG = () => { html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `KPI-${activeDept}.png`; link.href = canvas.toDataURL(); link.click(); }); };
         
+        // --- Copy Summary (Enhanced) ---
+        window.copyFullSummary = () => {
+            if(!rawDataList.length) { alert('ไม่มีข้อมูลให้สรุป'); return; }
+
+            const pendingData = rawDataList.filter(r => r.status !== 'จัดส่งแล้ว');
+            const deliveredData = rawDataList.filter(r => r.status === 'จัดส่งแล้ว');
+
+            // Count Totals
+            const totalBills = rawDataList.length;
+            const totalItems = rawDataList.reduce((sum, r) => sum + (r.items ? r.items.length : 0), 0);
+            
+            const deliveredBills = deliveredData.length;
+            
+            const pendingBills = pendingData.length;
+            const pendingItems = pendingData.reduce((sum, r) => sum + (r.items ? r.items.length : 0), 0);
+
+            let text = `📋 สรุปงานผลิตวันที่ ${document.getElementById('dash-date-filter').value || 'ล่าสุด'}\n`;
+            text += `งานทั้งหมด: ${totalBills} บิล (${totalItems} รายการ)\n`;
+            text += `จัดส่งแล้ว: ${deliveredBills} บิล (เสร็จสิ้น)\n`;
+            text += `งานค้างผลิต: ${pendingBills} บิล (${pendingItems} รายการ)\n\n`;
+            
+            text += `🛒 แยกตามช่องทาง (งานค้าง):\n`;
+
+            // Group Pending by Channel
+            const groupedByChannel = pendingData.reduce((acc, r) => {
+                const chan = getChannel(r.order_id);
+                if (!acc[chan]) acc[chan] = [];
+                acc[chan].push(r);
+                return acc;
+            }, {});
+
+            for (const [chan, bills] of Object.entries(groupedByChannel)) {
+                const chanItems = bills.reduce((sum, b) => sum + b.items.length, 0);
+                text += `- ${chan}: ${bills.length} บิล (${chanItems} รายการ)\n`;
+
+                // Group by Status inside Channel
+                const groupedByStatus = bills.reduce((acc, b) => {
+                    const st = b.status || 'Wait';
+                    if (!acc[st]) acc[st] = [];
+                    acc[st].push(b);
+                    return acc;
+                }, {});
+
+                for (const [st, subBills] of Object.entries(groupedByStatus)) {
+                    const stItems = subBills.reduce((sum, b) => sum + b.items.length, 0);
+                    text += `   - ${st}: ${subBills.length} บิล (${stItems} รายการ)\n`;
+                }
+            }
+
+            navigator.clipboard.writeText(text).then(() => alert('คัดลอกสรุปเรียบร้อย!'));
+        };
+
         // ==========================================
-        //  PART 2: KPI LOGIC (Date Filtered)
+        //  PART 2: KPI LOGIC
         // ==========================================
         
         document.getElementById('kpi-upload').onchange = async (e) => {
@@ -657,7 +719,6 @@
                     if(upsertData.length > 0) {
                         const { error } = await db.from('kpi_data').upsert(upsertData, { onConflict: 'id' });
                         if(!error) uploadCount += upsertData.length;
-                        else console.error(error);
                     }
                 }
             }
@@ -826,21 +887,35 @@
             XLSX.utils.book_append_sheet(wb, wsSum, "ภาพรวม");
             XLSX.writeFile(wb, `KPI_Summary.xlsx`);
         };
+        
+        // --- Enhanced KPI Copy ---
         window.copyAllDeptsSummary = () => {
             const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
             const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
-            let summaryText = `📊 สรุป KPI รวม\n--------------------------\n`;
+            const dateStr = document.getElementById('kpi-date-filter').value;
+            
+            let summaryText = `📊 สรุป KPI ประจำวันที่ ${dateStr}\n========================\n`;
+            
             for (let deptName in kpiAllDepts) {
-                let totalWeighted = 0, count = 0;
+                let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
                 kpiAllDepts[deptName].forEach(row => {
                     const res = getKPIRowData(row);
                     if(!res) return;
                     totalWeighted += Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
+                    totalOnTime += res.scoreOnTime;
+                    totalEff += res.scoreEff;
                     count++;
                 });
-                if(count > 0) summaryText += `📍 ${deptName}: ${Math.round(totalWeighted/count)} แต้ม (${count} งาน)\n`;
+                
+                if(count > 0) {
+                    summaryText += `📍 แผนก: ${deptName}\n`;
+                    summaryText += `   1. %คะแนนรวม: ${Math.round(totalWeighted/count)}%\n`;
+                    summaryText += `   2. %ส่งตรงแผน: ${Math.round(totalOnTime/count)}%\n`;
+                    summaryText += `   3. %ความไว: ${Math.round(totalEff/count)}%\n`;
+                    summaryText += `------------------------\n`;
+                }
             }
-            navigator.clipboard.writeText(summaryText).then(() => alert('คัดลอกสรุปแล้ว!'));
+            navigator.clipboard.writeText(summaryText).then(() => alert('คัดลอกสรุป KPI แล้ว!'));
         };
 
     </script>
