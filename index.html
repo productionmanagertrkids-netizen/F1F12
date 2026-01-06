@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Production Management System (Channel Support)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap');
+        :root {
+            --primary: #007bff; --success: #28a745; --info: #17a2b8; --danger: #dc3545;
+            --warning: #ffc107; --dark: #343a40; --light: #f8f9fa; --shadow: 0 4px 12px rgba(0,0,0,0.1);
+            --orange: #fd7e14; --purple: #6610f2; --teal: #20c997;
+        }
+        body { font-family: 'Kanit', sans-serif; margin: 0; background: #f0f2f5; color: #333; }
+        .navbar { background: var(--dark); padding: 0 20px; display: flex; align-items: center; height: 65px; position: sticky; top: 0; z-index: 1000; }
+        .nav-brand { color: white; font-weight: 600; font-size: 22px; margin-right: 30px; }
+        .nav-menu { display: flex; gap: 10px; }
+        .nav-link { color: #ccc; padding: 10px 20px; cursor: pointer; border-radius: 8px; transition: 0.3s; }
+        .nav-link:hover { background: rgba(255,255,255,0.1); color: white; }
+        .nav-link.active { background: var(--primary); color: white; }
+        .container { max-width: 1450px; margin: 20px auto; padding: 0 15px; }
+        .page { display: none; }
+        .page.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow); margin-bottom: 20px; }
+        h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; color: var(--dark); }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin: 15px 0; }
+        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: var(--shadow); border-left: 5px solid var(--primary); }
+        .stat-card h3 { margin: 0; font-size: 0.9em; color: #666; }
+        .stat-card .count { font-size: 2.2rem; font-weight: 600; color: var(--primary); margin: 5px 0; }
+        .stat-card .sub { font-size: 0.9em; color: #777; }
+
+        .stat-card.total { border-left-color: #6c757d; }
+        .stat-card.delivered { border-left-color: var(--success); }
+        .stat-card.delivered .count { color: var(--success); }
+        .stat-card.pending-main { border-left-color: var(--orange); }
+        .stat-card.pending-main .count { color: var(--orange); }
+        
+        /* เพิ่มสีสำหรับช่องทาง */
+        .stat-card.channel { border-left-color: var(--teal); }
+        .stat-card.channel .count { color: var(--teal); }
+
+        .weight-setting-box { background: #f0f7ff; border: 1px solid #b8daff; border-radius: 10px; padding: 20px; margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center; }
+        .weight-item { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+        .weight-input { width: 60px; padding: 8px; border: 1px solid #007bff; border-radius: 6px; text-align: center; font-weight: bold; }
+        
+        select.form-select { padding: 8px 12px; border-radius: 6px; border: 1px solid #ccc; font-family: 'Kanit'; font-size: 1rem; min-width: 200px; }
+
+        .tab-bar { display: flex; gap: 5px; overflow-x: auto; }
+        .tab-item { padding: 12px 25px; background: #e9ecef; cursor: pointer; border-radius: 8px 8px 0 0; white-space: nowrap; border: 1px solid #ddd; color: #666; }
+        .tab-item.active { background: white; border-bottom: 2px solid white; color: var(--primary); font-weight: 600; }
+
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 0.8em; }
+        th { background: #f4f6f9; padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; color: #333; position: sticky; top: 0; }
+        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.85em; font-weight: 500; }
+        .bg-success-light { background: #d4edda; color: #155724; }
+        .bg-warning-light { background: #fff3cd; color: #856404; }
+        .bg-danger-light { background: #f8d7da; color: #721c24; }
+        
+        .score-box { font-weight: bold; color: var(--purple); font-size: 1.1em; }
+        .text-danger { color: var(--danger); font-weight: bold; }
+
+        .btn { border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-family: 'Kanit'; display: flex; align-items: center; gap: 8px; font-weight: 500; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-info { background: var(--info); color: white; }
+        .btn-warning { background: var(--warning); color: #333; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .channel-group { border: 1px solid #dee2e6; border-radius: 10px; margin-bottom: 15px; overflow: hidden; background: white; }
+        .channel-header { background: #e2f3f5; padding: 15px 20px; display: flex; justify-content: space-between; cursor: pointer; font-weight: 600; }
+        .invoice-row { border-top: 1px solid #eee; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.2s; }
+        .invoice-row:hover { background: #f8fbff; }
+        .invoice-details { display: none; padding: 15px; background: #fafafa; border-top: 1px solid #eee; }
+        .active-detail { display: block; }
+        .status-tag { display: inline-flex; align-items: center; background: #e9ecef; padding: 5px 12px; border-radius: 20px; font-size: 0.85em; margin: 5px 5px 0 0; }
+        .status-tag span { cursor: pointer; margin-left: 8px; color: var(--danger); font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="nav-brand">🏭 Production System</div>
+        <div class="nav-menu">
+            <div class="nav-link active" onclick="showPage('dash', this)">1. Dashboard การผลิต</div>
+            <div class="nav-link" onclick="showPage('kpi', this)">2. KPI การผลิต</div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <!-- PAGE 1: DASHBOARD -->
+        <div id="page-dash" class="page active">
+            <div class="card">
+                <h2>⚙️ ตั้งค่าและนำเข้าไฟล์ (Dashboard)</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div>
+                        <label>จัดการสถานะงานค้าง:</label>
+                        <div style="display: flex; gap: 5px; margin-top:5px;">
+                            <input type="text" id="status-input" style="flex:1; padding:8px; border-radius:8px; border:1px solid #ddd;" placeholder="เช่น รอส่งช่าง...">
+                            <button class="btn btn-success" onclick="addStatusTag()">+</button>
+                        </div>
+                        <div id="status-tags-area"></div>
+                    </div>
+                    <div>
+                        <label>อัปโหลด Excel Dashboard (รองรับหลายไฟล์):</label>
+                        <div style="margin-top:5px;">
+                            <input type="file" id="dash-upload" accept=".xlsx, .xls" multiple hidden>
+                            <button class="btn btn-primary" onclick="document.getElementById('dash-upload').click()">📁 เลือกไฟล์ Excel</button>
+                            <div id="dash-file-info" style="font-size: 0.8em; color: #666; margin-top:5px;">ยังไม่ได้เลือกไฟล์</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dash-result-area" style="display: none;">
+                <div id="capture-zone-dash" style="background: #f0f2f5; padding: 20px; border-radius: 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2 style="margin: 0;">📊 ภาพรวมผลิต</h2>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-info" onclick="exportDashboardPNG()">📸 บันทึกภาพ</button>
+                            <button class="btn btn-warning" onclick="copyFullSummary()">📋 คัดลอกสรุป</button>
+                        </div>
+                    </div>
+                    
+                    <!-- ส่วนแสดงผลหลัก -->
+                    <div id="dash-main-summary" class="dashboard-grid"></div>
+
+                    <!-- 🟢 เพิ่มส่วนแสดงผลแยกตามช่องทาง -->
+                    <h2 style="margin-top: 30px;">🛒 แยกตามช่องทาง (งานค้าง):</h2>
+                    <div id="dash-channel-cards" class="dashboard-grid"></div>
+
+                    <!-- ส่วนแสดงผลตามสถานะ -->
+                    <h2 style="margin-top: 30px;">🔍 งานที่ค้างแยกตามสถานะ:</h2>
+                    <div id="dash-status-cards" class="dashboard-grid"></div>
+                </div>
+
+                <div style="margin-top: 40px; border-top: 2px solid #ddd; padding-top: 25px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>📦 รายการบิลค้างผลิต</h2>
+                        <button class="btn btn-danger" onclick="clearAllDashStatuses()">ล้างสถานะทั้งหมด</button>
+                    </div>
+                    <div id="dash-list-container" style="margin-top: 15px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE 2: KPI -->
+        <div id="page-kpi" class="page">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2>⏱️ คำนวณ KPI และประสิทธิภาพจริง</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="file" id="kpi-upload" accept=".xlsx, .xls" multiple hidden>
+                        <button class="btn btn-primary" onclick="document.getElementById('kpi-upload').click()">📁 อัปโหลดไฟล์ KPI</button>
+                    </div>
+                </div>
+                <div id="kpi-file-info" style="font-size: 0.85em; color: #666; margin-top:5px;"></div>
+            </div>
+
+            <div id="kpi-result-area" style="display: none;">
+                <div class="weight-setting-box">
+                    <strong>⚙️ ตั้งค่า:</strong>
+                    <div class="weight-item">ตรงแผน: <input type="number" id="w-ontime" class="weight-input" value="70" onchange="recalculateKPI()"> %</div>
+                    <div class="weight-item">ความไว: <input type="number" id="w-eff" class="weight-input" value="30" onchange="recalculateKPI()"> %</div>
+                    <div class="weight-item" style="border-left: 2px solid #ddd; padding-left: 20px;">
+                        🔍 กรองใบงาน: 
+                        <select id="kpi-job-filter" class="form-select" onchange="recalculateKPI()">
+                            <option value="ALL">-- แสดงทั้งหมด --</option>
+                        </select>
+                    </div>
+                    <div style="margin-left: auto; display: flex; gap: 10px;">
+                        <button class="btn btn-success" onclick="exportKPIToExcel()">📊 Export Excel</button>
+                        <button class="btn btn-warning" onclick="copyAllDeptsSummary()">📋 คัดลอกสรุป</button>
+                    </div>
+                </div>
+
+                <div class="tab-bar" id="kpi-tab-bar"></div>
+                <div id="capture-zone-kpi" class="card" style="border-radius: 0 12px 12px 12px; border-top:none; padding: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h4 id="dept-title-png" style="margin:0; color:var(--primary);">สรุปผลแผนก</h4>
+                        <button class="btn btn-info btn-sm" onclick="exportKPIPNG()">📸 บันทึกภาพ</button>
+                    </div>
+                    <div id="kpi-summary-cards" class="dashboard-grid"></div>
+                    <div style="overflow-x: auto; margin-top: 15px;">
+                        <table id="kpi-table">
+                            <thead>
+                                <tr>
+                                    <th>ลำดับ</th>
+                                    <th>ใบงาน</th>
+                                    <th>จำนวน</th>
+                                    <th>แผนเริ่ม</th>
+                                    <th>แผนเสร็จ</th>
+                                    <th>เริ่มจริง</th>
+                                    <th>เสร็จจริง</th>
+                                    <th>เวลา (จริง/แผน)</th>
+                                    <th>เวลาใช้เกิน</th>
+                                    <th>เสร็จล่าช้า</th>
+                                    <th>ตรงแผน (%)</th>
+                                    <th>ความไว (%)</th>
+                                    <th>คะแนนรวม</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kpi-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Helper Functions ---
+        function showPage(pageId, el) {
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            el.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+        }
+        const getVal = (row, names) => {
+            for (let n of names) {
+                let key = Object.keys(row).find(k => k.trim() === n);
+                if (key !== undefined) return row[key];
+            }
+            return '';
+        };
+        const getItemWeight = (name) => (name && String(name).includes('ตรายางคอนโด')) ? 0.2 : 1;
+
+        function readExcelFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    resolve(workbook);
+                };
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        // ==========================================
+        //  PAGE 1: DASHBOARD LOGIC
+        // ==========================================
+        let fullExcelData = [];
+        let pendingData = [];
+        let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอคอนเฟิร์ม", "รอผลิต", "กำลังผลิต"]');
+
+        document.getElementById('dash-upload').onchange = async (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+            
+            document.getElementById('dash-file-info').textContent = `กำลังโหลด ${files.length} ไฟล์...`;
+            fullExcelData = []; 
+
+            for (let i = 0; i < files.length; i++) {
+                const wb = await readExcelFile(files[i]);
+                const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                fullExcelData = fullExcelData.concat(sheetData);
+            }
+
+            document.getElementById('dash-file-info').textContent = `โหลดเสร็จสิ้น (${files.length} ไฟล์, ${fullExcelData.length} รายการ)`;
+            pendingData = fullExcelData.filter(r => !String(getVal(r, ['สถานะ', 'Status'])).includes('จัดส่งแล้ว'));
+            document.getElementById('dash-result-area').style.display = 'block';
+            renderDashboard();
+        };
+
+        function renderDashboard() {
+            // 1. คำนวณภาพรวม
+            const totalBills = new Set(fullExcelData.map(r => getVal(r, ['เลขบิล', 'Order ID']))).size;
+            let totalItems = 0; fullExcelData.forEach(r => totalItems += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product'])));
+            const deliveredRows = fullExcelData.filter(r => String(getVal(r, ['สถานะ', 'Status'])).includes('จัดส่งแล้ว'));
+            const deliveredBills = new Set(deliveredRows.map(r => getVal(r, ['เลขบิล', 'Order ID']))).size;
+            let deliveredItems = 0; deliveredRows.forEach(r => deliveredItems += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product'])));
+            const pendingBills = new Set(pendingData.map(r => getVal(r, ['เลขบิล', 'Order ID']))).size;
+            let pendingItems = 0; pendingData.forEach(r => pendingItems += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product'])));
+
+            document.getElementById('dash-main-summary').innerHTML = `
+                <div class="stat-card total"><h3>งานทั้งหมด</h3><div class="count">${totalBills}<span class="unit"> บิล</span></div><div class="sub">${Math.ceil(totalItems)} รายการ</div></div>
+                <div class="stat-card delivered"><h3>จัดส่งแล้ว</h3><div class="count">${deliveredBills}<span class="unit"> บิล</span></div><div class="sub">${Math.ceil(deliveredItems)} รายการ</div></div>
+                <div class="stat-card pending-main"><h3>งานค้างผลิต</h3><div class="count">${pendingBills}<span class="unit"> บิล</span></div><div class="sub">${Math.ceil(pendingItems)} รายการ</div></div>
+            `;
+
+            // 2. คำนวณและแสดงแยกตามช่องทาง (Channel)
+            const channelStats = {};
+            pendingData.forEach(r => {
+                const id = String(getVal(r, ['เลขบิล', 'Order ID']));
+                // ดึงตัวอักษรหน้าบิล เช่น FBTR, LZTR, SPTR
+                const chan = (id.match(/^[A-Za-z]+/) || ['OTHER'])[0].toUpperCase();
+                
+                if (!channelStats[chan]) channelStats[chan] = { bills: new Set(), items: 0 };
+                channelStats[chan].bills.add(id);
+                channelStats[chan].items += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product']));
+            });
+
+            // สร้างการ์ดแสดงผลช่องทาง
+            document.getElementById('dash-channel-cards').innerHTML = Object.entries(channelStats).map(([chan, d]) => `
+                <div class="stat-card channel">
+                    <h3>${chan} (ค้างผลิต)</h3>
+                    <div class="count">${d.bills.size}<span class="unit"> บิล</span></div>
+                    <div class="sub">${Math.ceil(d.items)} รายการ</div>
+                </div>
+            `).join('');
+
+            // 3. คำนวณแยกตามสถานะ (Status Tags)
+            const statusStats = {};
+            pendingData.forEach(r => {
+                const id = getVal(r, ['เลขบิล', 'Order ID']);
+                const s = localStorage.getItem(`dash-s-${id}`) || 'ยังไม่ได้ระบุ';
+                if (!statusStats[s]) statusStats[s] = { bills: new Set(), items: 0 };
+                statusStats[s].bills.add(id);
+                statusStats[s].items += getItemWeight(getVal(r, ['ชื่อสินค้า', 'Product']));
+            });
+            document.getElementById('dash-status-cards').innerHTML = Object.entries(statusStats).map(([s, d]) => `
+                <div class="stat-card" style="border-left-color: ${s==='ยังไม่ได้ระบุ'?'#ccc':'var(--info)'}">
+                    <h3>${s}</h3><div class="count">${d.bills.size}<span class="unit"> บิล</span></div><div class="sub">${Math.ceil(d.items)} รายการ</div>
+                </div>
+            `).join('');
+            
+            renderBillList();
+        }
+
+        function renderBillList() {
+            const grouped = pendingData.reduce((acc, r) => {
+                const id = String(getVal(r, ['เลขบิล', 'Order ID']));
+                const chan = (id.match(/^[A-Za-z]+/) || ['OTHER'])[0].toUpperCase();
+                if (!acc[chan]) acc[chan] = {};
+                if (!acc[chan][id]) acc[chan][id] = [];
+                acc[chan][id].push(r);
+                return acc;
+            }, {});
+            const listCont = document.getElementById('dash-list-container');
+            listCont.innerHTML = '';
+            for (let chan in grouped) {
+                const groupDiv = document.createElement('div');
+                groupDiv.className = 'channel-group';
+                groupDiv.innerHTML = `<div class="channel-header" onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display==='none'?'block':'none')">${chan} <span>${Object.keys(grouped[chan]).length} บิล ▼</span></div><div class="channel-body" style="display:block;"></div>`;
+                const body = groupDiv.querySelector('.channel-body');
+                for (let billId in grouped[chan]) {
+                    const items = grouped[chan][billId];
+                    const saved = localStorage.getItem(`dash-s-${billId}`) || '';
+                    const row = document.createElement('div');
+                    row.innerHTML = `<div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')"><span><strong>${billId}</strong></span><select onchange="updateBillStatus('${billId}', this.value)" onclick="event.stopPropagation()"><option value="">-- ระบุสถานะ --</option>${customStatuses.map(s => `<option value="${s}" ${s===saved?'selected':''}>${s}</option>`).join('')}</select></div><div class="invoice-details">${items.map(i => `<div>• ${getVal(i, ['ชื่อสินค้า', 'Product'])} <small style="color:#666">(${getVal(i, ['รายละเอียดสินค้า', 'Description'])})</small></div>`).join('')}</div>`;
+                    body.appendChild(row);
+                }
+                listCont.appendChild(groupDiv);
+            }
+        }
+
+        window.exportDashboardPNG = () => {
+            html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `สรุปผลิต-${new Date().toLocaleDateString('th-TH')}.png`;
+                link.href = canvas.toDataURL(); link.click();
+            });
+        };
+
+        // 🟢 แก้ไขฟังก์ชัน Copy Summary ให้รวมช่องทาง
+        window.copyFullSummary = () => {
+            let text = `📋 สรุปงานผลิตวันที่ ${new Date().toLocaleDateString('th-TH')}\n`;
+            
+            // 1. สรุปภาพรวม
+            document.querySelectorAll('#dash-main-summary .stat-card').forEach(c => text += `${c.querySelector('h3').innerText}: ${c.querySelector('.count').innerText} (${c.querySelector('.sub').innerText})\n`);
+            
+            // 2. สรุปแยกตามช่องทาง
+            text += `\n🛒 แยกตามช่องทาง (งานค้าง):\n`;
+            document.querySelectorAll('#dash-channel-cards .stat-card').forEach(c => {
+                 // ดึงชื่อช่องทาง ตัดคำว่า (ค้างผลิต) ออกเพื่อความสั้นกระชับ
+                let chanName = c.querySelector('h3').innerText.replace(' (ค้างผลิต)', '');
+                let bills = c.querySelector('.count').innerText;
+                let items = c.querySelector('.sub').innerText;
+                text += `- ${chanName}: ${bills} (${items})\n`;
+            });
+
+            // 3. สรุปสถานะ
+            text += `\n📍 แยกตามสถานะ:\n`;
+            document.querySelectorAll('#dash-status-cards .stat-card').forEach(c => text += `- ${c.querySelector('h3').innerText}: ${c.querySelector('.count').innerText} (${c.querySelector('.sub').innerText})\n`);
+            
+            navigator.clipboard.writeText(text).then(() => alert('คัดลอกสรุปเรียบร้อย!'));
+        };
+
+        window.updateBillStatus = (id, val) => { val ? localStorage.setItem(`dash-s-${id}`, val) : localStorage.removeItem(`dash-s-${id}`); renderDashboard(); };
+        window.clearAllDashStatuses = () => { if(confirm('ล้างสถานะทั้งหมด?')) { Object.keys(localStorage).forEach(k => k.startsWith('dash-s-') && localStorage.removeItem(k)); renderDashboard(); }};
+        function addStatusTag() { const v = document.getElementById('status-input').value.trim(); if(v && !customStatuses.includes(v)) { customStatuses.push(v); localStorage.setItem('prodStatuses', JSON.stringify(customStatuses)); document.getElementById('status-input').value=''; renderStatusTags(); } }
+        function renderStatusTags() { document.getElementById('status-tags-area').innerHTML = customStatuses.map(s => `<div class="status-tag">${s} <span onclick="removeStatusTag('${s}')">&times;</span></div>`).join(''); }
+        function removeStatusTag(s) { customStatuses = customStatuses.filter(x => x !== s); localStorage.setItem('prodStatuses', JSON.stringify(customStatuses)); renderStatusTags(); }
+        renderStatusTags();
+
+        // ==========================================
+        //  PAGE 2: KPI LOGIC
+        // ==========================================
+        let kpiAllDepts = {};
+        let activeDept = "";
+
+        document.getElementById('kpi-upload').onchange = async (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+            
+            document.getElementById('kpi-file-info').textContent = `กำลังประมวลผล ${files.length} ไฟล์...`;
+            kpiAllDepts = {}; 
+
+            for (let i = 0; i < files.length; i++) {
+                const wb = await readExcelFile(files[i]);
+                wb.SheetNames.forEach(name => {
+                    const data = XLSX.utils.sheet_to_json(wb.Sheets[name], { raw: true });
+                    if(data.length > 0) {
+                        if(kpiAllDepts[name]) {
+                            kpiAllDepts[name] = kpiAllDepts[name].concat(data);
+                        } else {
+                            kpiAllDepts[name] = data;
+                        }
+                    }
+                });
+            }
+
+            document.getElementById('kpi-file-info').textContent = `พร้อมใช้งาน: ${Object.keys(kpiAllDepts).length} แผนก จาก ${files.length} ไฟล์`;
+            activeDept = Object.keys(kpiAllDepts)[0] || "";
+            document.getElementById('kpi-result-area').style.display = 'block';
+            
+            renderKPITabs();
+            updateJobFilterDropdown();
+            recalculateKPI();
+        };
+
+        function parseTime(val) {
+            if (!val) return null;
+            let d = new Date();
+            if (typeof val === 'number') {
+                const totalSec = Math.round(val * 86400);
+                d.setHours(Math.floor(totalSec/3600), Math.floor((totalSec%3600)/60), 0, 0);
+                return d;
+            }
+            if (typeof val === 'string' && val.includes(':')) {
+                const [h, m] = val.split(':').map(Number);
+                d.setHours(h, m, 0, 0); return d;
+            }
+            return (val instanceof Date) ? val : null;
+        }
+
+        function fmtTime(d) { return d ? d.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) + ' น.' : '-'; }
+
+        function renderKPITabs() {
+            const bar = document.getElementById('kpi-tab-bar');
+            bar.innerHTML = Object.keys(kpiAllDepts).map(name => `<div class="tab-item ${name===activeDept?'active':''}" onclick="changeDept('${name}')">${name}</div>`).join('');
+        }
+        
+        function changeDept(name) { 
+            activeDept = name; 
+            renderKPITabs(); 
+            updateJobFilterDropdown(); 
+            recalculateKPI(); 
+        }
+
+        function updateJobFilterDropdown() {
+            if (!activeDept || !kpiAllDepts[activeDept]) return;
+            const data = kpiAllDepts[activeDept];
+            const select = document.getElementById('kpi-job-filter');
+            
+            const jobs = new Set();
+            data.forEach(r => {
+                const name = getVal(r, ['ชื่อใบงาน', 'ชื่อสินค้า']);
+                if(name) jobs.add(name);
+            });
+
+            select.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
+            jobs.forEach(job => {
+                const opt = document.createElement('option');
+                opt.value = job;
+                opt.innerText = job;
+                select.appendChild(opt);
+            });
+        }
+
+        function getKPIRowData(row) {
+            const pStart = parseTime(getVal(row, ['แผนเริ่ม', 'เวลาตัด']));
+            const pEnd = parseTime(getVal(row, ['แผนเสร็จ']));
+            const aStart = parseTime(getVal(row, ['เริ่มจริง']));
+            const aEnd = parseTime(getVal(row, ['เสร็จจริง']));
+            if(!aEnd || !pStart || !pEnd || !aStart) return null;
+            const pDuration = Math.max(1, Math.round((pEnd - pStart) / 60000));
+            const aDuration = Math.max(1, Math.round((aEnd - aStart) / 60000));
+            const delayMin = Math.round((aEnd - pEnd) / 60000);
+            const timeExceeded = Math.max(0, aDuration - pDuration);
+            let scoreOnTime = (delayMin <= 0) ? 100 : Math.round((pDuration / (pDuration + delayMin)) * 100);
+            let scoreEff = Math.min(100, Math.round((pDuration / aDuration) * 100));
+            return { pStart, pEnd, aStart, aEnd, pDuration, aDuration, delayMin, timeExceeded, scoreOnTime, scoreEff };
+        }
+
+        function recalculateKPI() {
+            if(!activeDept) return;
+            const data = kpiAllDepts[activeDept];
+            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
+            const filterJob = document.getElementById('kpi-job-filter').value;
+
+            document.getElementById('dept-title-png').innerText = `สรุปผลแผนก: ${activeDept} ${filterJob !== 'ALL' ? '(เฉพาะใบงาน: ' + filterJob + ')' : ''}`;
+            
+            let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
+            const tbody = document.getElementById('kpi-table-body');
+            tbody.innerHTML = "";
+            
+            data.forEach((row, idx) => {
+                const jobName = getVal(row, ['ชื่อใบงาน', 'ชื่อสินค้า']);
+                if (filterJob !== 'ALL' && jobName !== filterJob) return;
+
+                const res = getKPIRowData(row);
+                if(!res) return;
+                
+                const finalScore = Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
+                totalWeighted += finalScore; totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
+                
+                const qty = getVal(row, ['จำนวน', 'Qty', 'Quantity']) || '-';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${count}</td>
+                    <td><strong>${jobName}</strong></td>
+                    <td>${qty}</td>
+                    <td>${fmtTime(res.pStart)}</td>
+                    <td>${fmtTime(res.pEnd)}</td>
+                    <td>${fmtTime(res.aStart)}</td>
+                    <td>${fmtTime(res.aEnd)}</td>
+                    <td>${res.aDuration} / ${res.pDuration} น.</td>
+                    <td class="${res.timeExceeded > 0 ? 'text-danger' : ''}">${res.timeExceeded > 0 ? res.timeExceeded + ' น.' : '0'}</td>
+                    <td class="${res.delayMin > 0 ? 'text-danger' : ''}">${res.delayMin > 0 ? res.delayMin + ' น.' : '0'}</td>
+                    <td><span class="badge ${res.scoreOnTime >= 80 ? 'bg-success-light' : (res.scoreOnTime >= 50 ? 'bg-warning-light' : 'bg-danger-light')}">${res.scoreOnTime}%</span></td>
+                    <td><span class="badge bg-success-light">${res.scoreEff}%</span></td>
+                    <td class="score-box">${finalScore}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            document.getElementById('kpi-summary-cards').innerHTML = `
+                <div class="stat-card" style="border-left-color: var(--purple);"><h3>KPI รวมแผนก</h3><div class="count">${count > 0 ? Math.round(totalWeighted/count) : 0}</div><div class="sub">เฉลี่ยจาก ${count} งาน</div></div>
+                <div class="stat-card" style="border-left-color: var(--success);"><h3>ผลสรุป: ตรงแผน</h3><div class="count">${count > 0 ? Math.round(totalOnTime/count) : 0}%</div><div class="sub">เฉลี่ยประสิทธิภาพเวลาส่งมอบ</div></div>
+                <div class="stat-card" style="border-left-color: var(--info);"><h3>ผลสรุป: ความไว</h3><div class="count">${count > 0 ? Math.round(totalEff/count) : 0}%</div><div class="sub">เฉลี่ยประสิทธิภาพการผลิต</div></div>
+            `;
+        }
+
+        window.exportKPIPNG = () => {
+            html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `KPI-สรุป-${activeDept}-${new Date().toLocaleDateString('th-TH')}.png`;
+                link.href = canvas.toDataURL(); link.click();
+            });
+        };
+
+        window.exportKPIToExcel = () => {
+            const wb = XLSX.utils.book_new();
+            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
+            const filterJob = document.getElementById('kpi-job-filter').value; 
+
+            const overallSummary = [];
+
+            const deptsSheets = [];
+            for (let deptName in kpiAllDepts) {
+                const sheetData = [];
+                let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
+
+                kpiAllDepts[deptName].forEach((row, idx) => {
+                    if (deptName === activeDept && filterJob !== 'ALL' && getVal(row, ['ชื่อใบงาน', 'ชื่อสินค้า']) !== filterJob) return;
+
+                    const res = getKPIRowData(row);
+                    if(!res) return;
+                    const finalScore = Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
+                    totalWeighted += finalScore; totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
+
+                    sheetData.push({
+                        "ลำดับ": count, "ใบงาน": getVal(row, ['ชื่อใบงาน', 'ชื่อสินค้า']),
+                        "จำนวน": getVal(row, ['จำนวน', 'Qty', 'Quantity']),
+                        "แผนเริ่ม": fmtTime(res.pStart), "แผนเสร็จ": fmtTime(res.pEnd),
+                        "เริ่มจริง": fmtTime(res.aStart), "เสร็จจริง": fmtTime(res.aEnd),
+                        "เวลาทำจริง": res.aDuration, "เวลาตามแผน": res.pDuration,
+                        "เวลาใช้เกิน": res.timeExceeded, "เสร็จล่าช้า": res.delayMin,
+                        "ตรงแผน(%)": res.scoreOnTime, "ความไว(%)": res.scoreEff, "คะแนนรวม": finalScore
+                    });
+                });
+
+                if(count > 0) {
+                    const avgW = Math.round(totalWeighted/count);
+                    const avgOT = Math.round(totalOnTime/count);
+                    const avgEF = Math.round(totalEff/count);
+
+                    sheetData.push({});
+                    sheetData.push({ "ใบงาน": "เฉลี่ยรวม", "ตรงแผน(%)": avgOT, "ความไว(%)": avgEF, "คะแนนรวม": avgW });
+                    overallSummary.push({ "ชื่อแผนก": deptName, "จำนวนใบงาน": count, "คะแนนรวมเฉลี่ย": avgW, "ตรงแผนเฉลี่ย(%)": avgOT, "ความไวเฉลี่ย(%)": avgEF });
+                    deptsSheets.push({ name: deptName, data: sheetData });
+                }
+            }
+
+            const wsSum = XLSX.utils.json_to_sheet(overallSummary);
+            XLSX.utils.book_append_sheet(wb, wsSum, "ภาพรวม");
+            deptsSheets.forEach(dept => {
+                const ws = XLSX.utils.json_to_sheet(dept.data);
+                XLSX.utils.book_append_sheet(wb, ws, dept.name);
+            });
+            XLSX.writeFile(wb, `สรุปKPI_${filterJob !== 'ALL' ? 'Filtered' : 'All'}_${new Date().toLocaleDateString('th-TH')}.xlsx`);
+        };
+
+        window.copyAllDeptsSummary = () => {
+            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
+            let summaryText = `📊 สรุป KPI การผลิตรวมทุกแผนก\n📅 ประจำวันที่ ${new Date().toLocaleDateString('th-TH')}\n`;
+            summaryText += `--------------------------\n`;
+            for (let deptName in kpiAllDepts) {
+                let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
+                kpiAllDepts[deptName].forEach(row => {
+                    const res = getKPIRowData(row);
+                    if(!res) return;
+                    totalWeighted += Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
+                    totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
+                });
+                if(count > 0) {
+                    summaryText += `📍 แผนก: ${deptName}\n🔹 KPI รวม: ${Math.round(totalWeighted/count)} แต้ม\n✅ ตรงแผน: ${Math.round(totalOnTime/count)}%\n⚡️ ความไว: ${Math.round(totalEff/count)}%\n📦 งานที่เสร็จ: ${count} ใบงาน\n--------------------------\n`;
+                }
+            }
+            navigator.clipboard.writeText(summaryText).then(() => alert('คัดลอกสรุปทุกแผนกเรียบร้อย!'));
+        };
+    </script>
+</body>
+</html>
