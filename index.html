@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production System (Complete Edition)</title>
+    <title>Production System</title>
     <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -120,8 +120,6 @@
                     <div id="upload-status" style="margin-left:auto; font-weight:bold; color:var(--success);"></div>
                 </div>
                 <div style="margin-top:10px; font-size:0.85em; color:#666;">
-                    * <b>Auto Fix:</b> แปลงวันที่ 6/1/2569 -> 2026-01-06 และอ่านค่าจากช่อง "เวลาสแกนส่ง" หรือ "Shipped Date"<br>
-                    * <b>Logic:</b> ถ้ามีวันที่ส่ง = อัปเดตเป็น "จัดส่งแล้ว", ถ้าไม่มี = คงสถานะเดิม
                 </div>
             </div>
 
@@ -130,7 +128,7 @@
                 <div id="capture-zone-dash" style="background: #f0f2f5; padding: 20px; border-radius: 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <div style="display:flex; align-items:center; gap:15px;">
-                            <h2 style="margin: 0;">📊 รายการงานผลิต</h2>
+                            <h2 style="margin: 0;">📊 สรุปภาพรวมการผลิต</h2>
                             <!-- Filter -->
                             <select id="dash-date-filter" class="form-select" onchange="fetchDashboardData()">
                                 <option value="">-- โหลดวันที่... --</option>
@@ -144,15 +142,15 @@
                     </div>
                     
                     <div id="dash-main-summary" class="dashboard-grid"></div>
-                    <h2 style="margin-top: 30px;">🛒 แยกตามช่องทาง:</h2>
-                    <div id="dash-channel-cards" class="dashboard-grid"></div>
-                    <h2 style="margin-top: 30px;">🔍 แยกตามสถานะ:</h2>
+                    <h2 style="margin-top: 30px;">⏳ ค้างส่งแยกตามช่องทาง:</h2>
+                    <div id="dash-pending-channel-cards" class="dashboard-grid"></div>
+                    <h2 style="margin-top: 30px;">🔍 ค้างส่งแยกตามสถานะ:</h2>
                     <div id="dash-status-cards" class="dashboard-grid"></div>
                 </div>
 
                 <div style="margin-top: 40px; border-top: 2px solid #ddd; padding-top: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>📦 รายการบิล</h2>
+                        <h2>📦 รายการบิล (เฉพาะที่ยังไม่ส่ง)</h2>
                         <div style="display:flex; gap:10px;">
                             <input type="text" id="status-input" placeholder="เพิ่มสถานะใหม่..." style="padding:5px 10px; border:1px solid #ddd; border-radius:5px;">
                             <button class="btn btn-success btn-sm" onclick="addCustomStatus()">+</button>
@@ -170,7 +168,7 @@
         <!-- PAGE 2: KPI (CLOUD STORED)           -->
         <!-- ==================================== -->
         <div id="page-kpi" class="page">
-            <div class="card">
+             <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2>⏱️ นำเข้าข้อมูล KPI (Admin)</h2>
                     <div style="display: flex; gap: 10px; align-items:center;">
@@ -198,8 +196,8 @@
                     <div style="border-left: 2px solid #ddd; margin: 0 15px; height: 30px;"></div>
 
                     <strong>⚙️ ตั้งค่า:</strong>
-                    <div class="weight-item">ตรงแผน: <input type="number" id="w-ontime" class="weight-input" value="70" onchange="recalculateKPI()"> %</div>
-                    <div class="weight-item">ความไว: <input type="number" id="w-eff" class="weight-input" value="30" onchange="recalculateKPI()"> %</div>
+                    <div class="weight-item">ตรงแผน: <input type="number" id="w-ontime" class="weight-input" value="70" onchange="adjustWeights(this.id)"> %</div>
+                    <div class="weight-item">ความไว: <input type="number" id="w-eff" class="weight-input" value="30" onchange="adjustWeights(this.id)"> %</div>
                     
                     <div style="margin-left: auto; display: flex; gap: 10px;">
                         <button class="btn btn-success" onclick="exportKPIToExcel()">📊 Export Excel</button>
@@ -228,7 +226,7 @@
                                     <th>ลำดับ</th><th>ใบงาน</th><th>จำนวน</th>
                                     <th>แผนเริ่ม</th><th>แผนเสร็จ</th>
                                     <th>เริ่มจริง</th><th>เสร็จจริง</th>
-                                    <th>เวลา (จริง/แผน)</th><th>เกิน</th>
+                                    <th>เกิน</th>
                                     <th>ล่าช้า</th><th>ตรงแผน (%)</th>
                                     <th>ความไว (%)</th><th>คะแนนรวม</th>
                                 </tr>
@@ -260,41 +258,19 @@
         // ==========================================
         //  HELPER FUNCTIONS
         // ==========================================
-        // ฟังก์ชันแปลงวันที่ (รองรับ Excel Serial, d/m/yyyy, พ.ศ.)
         function parseToISODate(value) {
             if (!value || value === '-' || String(value).trim() === '-') return null;
-            
-            // 1. Excel Serial Number
-            if (typeof value === 'number') {
-                const dateObj = new Date(Math.round((value - 25569) * 86400 * 1000));
-                return dateObj.toISOString().split('T')[0];
-            }
-
+            if (typeof value === 'number') { const dateObj = new Date(Math.round((value - 25569) * 86400 * 1000)); return dateObj.toISOString().split('T')[0]; }
             const strVal = String(value).trim();
-            // เอาเฉพาะวันที่ ตัดเวลาทิ้ง (กรณี "6/1/2569 15:20:32")
             const datePart = strVal.split(' ')[0];
-
-            // 2. Format d/m/yyyy หรือ d-m-yyyy
             if (datePart.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/)) {
                 const parts = datePart.split(/[\/\-]/);
-                let d = parseInt(parts[0]);
-                let m = parseInt(parts[1]);
                 let y = parseInt(parts[2]);
-
-                // แปลง พ.ศ. -> ค.ศ.
                 if (y > 2400) y -= 543;
-
-                const yy = y.toString();
-                const mm = m.toString().padStart(2, '0');
-                const dd = d.toString().padStart(2, '0');
-                return `${yy}-${mm}-${dd}`;
+                return `${y}-${String(parts[1]).padStart(2, '0')}-${String(parts[0]).padStart(2, '0')}`;
             }
-
-            // 3. Fallback standard parse
             const dateObj = new Date(strVal);
-            if (!isNaN(dateObj.getTime())) return dateObj.toISOString().split('T')[0];
-
-            return null;
+            return !isNaN(dateObj.getTime()) ? dateObj.toISOString().split('T')[0] : null;
         }
 
         const getChannel = (id) => {
@@ -344,27 +320,20 @@
 
         async function loadDashboardDates() {
             if(!db) return;
-            // ดึงวันที่มีข้อมูลทั้งหมด (ทั้งวันที่ Import และวันที่ส่ง)
             const { data, error } = await db.from('production_data').select('import_date, shipped_date');
             if(error) return;
-
             let dateSet = new Set();
             data.forEach(item => {
                 if(item.import_date) dateSet.add(item.import_date);
                 if(item.shipped_date) dateSet.add(item.shipped_date);
             });
-            
             const dates = [...dateSet].sort().reverse();
             const select = document.getElementById('dash-date-filter');
             select.innerHTML = '';
-            
-            if(dates.length === 0) {
-                select.innerHTML = '<option value="">ไม่มีข้อมูล</option>'; return;
-            }
+            if(dates.length === 0) { select.innerHTML = '<option value="">ไม่มีข้อมูล</option>'; return; }
             dates.forEach(d => {
                 const opt = document.createElement('option');
-                opt.value = d;
-                opt.innerText = d;
+                opt.value = d; opt.innerText = d;
                 select.appendChild(opt);
             });
             select.value = dates[0];
@@ -377,134 +346,77 @@
         async function fetchDashboardData() {
             if(!db) return;
             const selectedDate = document.getElementById('dash-date-filter').value;
+            if (!selectedDate) return;
             const statusDiv = document.getElementById('upload-status');
             statusDiv.innerHTML = '⏳ กำลังดึงข้อมูล...';
-            
-            if (!selectedDate) return;
-
-            // ดึงข้อมูล 2 กลุ่ม: 
-            // 1. รับเข้าวันนี้ (Import Date = selected)
-            // 2. ส่งออกวันนี้ (Shipped Date = selected)
             const { data, error } = await db.from('production_data')
-                .select('*')
-                .or(`import_date.eq.${selectedDate},shipped_date.eq.${selectedDate}`);
-            
+                .select('*').or(`import_date.eq.${selectedDate},shipped_date.eq.${selectedDate}`);
             if (error) { alert('โหลดข้อมูลล้มเหลว: ' + error.message); return; }
-
             rawDataList = data; 
             renderDashboard(selectedDate);
             statusDiv.innerHTML = `✅ ข้อมูลประจำวันที่ ${selectedDate}`;
         }
 
         function renderDashboard(targetDate) {
-            // Variables for Calculation
-            let incomingOrders = 0;      // รับเข้าวันนี้
-            let producedTodayNormal = 0; // รับวันนี้-เสร็จวันนี้ (On Time)
-            let producedTodayBacklog = 0;// รับวันอื่น-เสร็จวันนี้ (Cleared Backlog)
-            let pendingOnDay = 0;        // ค้าง (ยังไม่ส่ง)
-            let shippedLate = 0;         // ค้าง (ส่งช้ากว่าวันนี้)
-            
-            let listItems = [];          // Items for List View
+            let incomingOrders = 0, producedTodayNormal = 0, producedTodayBacklog = 0;
+            let pendingOnDay = 0, shippedLate = 0;
+            let listItems = [];
 
             rawDataList.forEach(row => {
                 const iDate = row.import_date;
                 const sDate = row.shipped_date;
-
-                // --- 1. งานรับเข้า (Workload) ---
                 if (iDate === targetDate) {
                     incomingOrders++;
-                    
-                    // วิเคราะห์สถานะ ณ วันที่เลือก (Target Date)
-                    if (sDate === targetDate) {
-                        producedTodayNormal++; // เสร็จทัน
-                        listItems.push(row);
-                    } else if (sDate && sDate > targetDate) {
-                        shippedLate++; // เสร็จนะ แต่เสร็จวันหลัง -> วันนี้ถือว่า "ส่งล่าช้า"
-                        listItems.push(row);
-                    } else if (!sDate) {
-                        pendingOnDay++; // ยังไม่เสร็จ
-                        listItems.push(row);
-                    }
+                    if (sDate === targetDate) { producedTodayNormal++; listItems.push(row); } 
+                    else if (sDate && sDate > targetDate) { shippedLate++; listItems.push(row); } 
+                    else if (!sDate) { pendingOnDay++; listItems.push(row); }
                 }
-
-                // --- 2. ผลงานผลิต (Output) ---
                 if (sDate === targetDate && iDate < targetDate) {
-                    producedTodayBacklog++; // งานค้างเก่า มาเสร็จวันนี้
-                    listItems.push(row);
+                    producedTodayBacklog++; listItems.push(row);
                 }
             });
 
             const totalProduced = producedTodayNormal + producedTodayBacklog;
-            const totalPendingView = pendingOnDay + shippedLate; // ยอดรวมที่ยังไม่เสร็จ (หรือเสร็จช้า)
+            const totalPendingView = pendingOnDay + shippedLate;
 
-            // Render Cards
             document.getElementById('dash-main-summary').innerHTML = `
-                <div class="stat-card total">
-                    <h3>📥 งานรับเข้าวันนี้ (New Orders)</h3>
-                    <div class="count">${incomingOrders}<span class="unit"> บิล</span></div>
-                    <div class="sub">วันที่: ${targetDate}</div>
-                </div>
-                
-                <div class="stat-card" style="border-left-color:var(--success)">
-                    <h3>🚀 ผลงานผลิตวันนี้ (Total Output)</h3>
-                    <div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div>
-                    <div class="sub" style="font-size:0.85em; display:flex; gap:15px; margin-top:5px;">
-                         <span>✅ ทันแผน: <b>${producedTodayNormal}</b></span>
-                         <span style="color:#fd7e14;">🔥 เคลียร์ค้าง: <b>${producedTodayBacklog}</b></span>
-                    </div>
-                </div>
-
-                <div class="stat-card channel">
-                    <h3>⚠️ คงเหลือ/ล่าช้า (Pending/Late)</h3>
-                    <div class="count">${totalPendingView}<span class="unit"> บิล</span></div>
-                    <div class="sub" style="font-size:0.85em;">
-                        ค้าง: <b>${pendingOnDay}</b> | เสร็จล่าช้า: <b style="color:red;">${shippedLate}</b>
-                    </div>
-                </div>
-            `;
+                <div class="stat-card"><h3>📥 งานรับเข้าวันนี้</h3><div class="count">${incomingOrders}<span class="unit"> บิล</span></div><div class="sub">วันที่: ${targetDate}</div></div>
+                <div class="stat-card" style="border-left-color:var(--success)"><h3 style="color:var(--success)">🚀 ผลงานผลิตวันนี้</h3><div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div><div class="sub">✅ ทันแผน: <b>${producedTodayNormal}</b> | 🔥 เคลียร์ค้าง: <b>${producedTodayBacklog}</b></div></div>
+                <div class="stat-card" style="border-left-color:var(--danger)"><h3 style="color:var(--danger)">⚠️ คงเหลือ/ล่าช้า</h3><div class="count" style="color:var(--danger)">${totalPendingView}<span class="unit"> บิล</span></div><div class="sub">ค้าง: <b>${pendingOnDay}</b> | เสร็จล่าช้า: <b>${shippedLate}</b></div></div>`;
 
             renderBillList(listItems, targetDate);
             updateSubCharts(listItems, targetDate);
         }
 
         function updateSubCharts(list, viewDate) {
-            const channelStats = {};
-            const statusStats = {};
+            const pendingChannelStats = {};
+            const pendingStatusStats = {};
             
             list.forEach(r => {
-                // Channel
-                const chan = getChannel(r.order_id);
-                if (!channelStats[chan]) channelStats[chan] = { bills: 0, items: 0 };
-                channelStats[chan].bills++;
-                channelStats[chan].items += (r.items ? r.items.length : 0);
-
-                // Status
-                let s = r.status;
-                // ถ้ามีวันที่ส่ง และวันที่ส่ง > วันที่ดูอยู่ -> สถานะคือ "ส่งล่าช้า" ในมุมมองวันนี้
-                if(r.shipped_date && r.shipped_date > viewDate) {
-                    s = "⚠️ ส่งล่าช้า";
+                const isPendingOrLate = !r.shipped_date || r.shipped_date > viewDate;
+                if(isPendingOrLate){
+                    const chan = getChannel(r.order_id);
+                    // Pending by Channel
+                    if (!pendingChannelStats[chan]) pendingChannelStats[chan] = { bills: 0 };
+                    pendingChannelStats[chan].bills++;
+                    
+                    // Pending by Status
+                    let s = r.shipped_date && r.shipped_date > viewDate ? "⚠️ ส่งล่าช้า" : r.status;
+                    if (!pendingStatusStats[s]) pendingStatusStats[s] = { bills: 0 };
+                    pendingStatusStats[s].bills++;
                 }
-                // ถ้าเคลียร์ค้าง
-                if(r.shipped_date === viewDate && r.import_date < viewDate) {
-                    s = "🔥 เคลียร์ค้าง";
-                }
-                
-                if (!statusStats[s]) statusStats[s] = { bills: 0 };
-                statusStats[s].bills++;
             });
+            
+            document.getElementById('dash-pending-channel-cards').innerHTML = Object.entries(pendingChannelStats).map(([chan, d]) => `
+                <div class="stat-card" style="border-left-color:var(--warning)"><h3>${chan}</h3><div class="count" style="color:var(--warning)">${d.bills}<span class="unit"> บิล</span></div></div>`).join('') || '<div class="card" style="grid-column: 1 / -1;">ไม่มีงานค้าง</div>';
 
-            document.getElementById('dash-channel-cards').innerHTML = Object.entries(channelStats).map(([chan, d]) => `
-                <div class="stat-card channel"><h3>${chan}</h3><div class="count">${d.bills}<span class="unit"> บิล</span></div><div class="sub">${d.items} รายการ</div></div>
-            `).join('');
-
-            document.getElementById('dash-status-cards').innerHTML = Object.entries(statusStats).map(([s, d]) => `
-                <div class="stat-card" style="border-left-color:var(--info)"><h3>${s}</h3><div class="count">${d.bills}<span class="unit"> บิล</span></div></div>
-            `).join('');
+            document.getElementById('dash-status-cards').innerHTML = Object.entries(pendingStatusStats).map(([s, d]) => `
+                <div class="stat-card" style="border-left-color:var(--info)"><h3>${s}</h3><div class="count" style="color:var(--info)">${d.bills}<span class="unit"> บิล</span></div></div>`).join('') || '<div class="card" style="grid-column: 1 / -1;">ไม่มีงานค้าง</div>';
         }
 
         function renderBillList(data, viewDate) {
-            // Group ข้อมูลตาม Channel
-            const grouped = data.reduce((acc, r) => {
+            const pendingData = data.filter(r => r.status !== 'จัดส่งแล้ว' && (!r.shipped_date || r.shipped_date > viewDate));
+            const grouped = pendingData.reduce((acc, r) => {
                 const chan = getChannel(r.order_id);
                 if (!acc[chan]) acc[chan] = [];
                 acc[chan].push(r);
@@ -513,6 +425,10 @@
 
             const container = document.getElementById('dash-list-container');
             container.innerHTML = '';
+            if (Object.keys(grouped).length === 0) {
+                container.innerHTML = '<div class="card">ไม่มีรายการบิลที่ยังไม่จัดส่ง</div>';
+                return;
+            }
 
             for (let chan in grouped) {
                 const groupDiv = document.createElement('div');
@@ -521,40 +437,26 @@
                 const body = groupDiv.querySelector('.channel-body');
                 
                 grouped[chan].forEach(bill => {
-                    if(!bill.items) return;
-                    
-                    // Logic Label
                     let statusLabel = bill.status;
                     let extraStyle = "";
-                    
                     if (bill.shipped_date && bill.shipped_date > viewDate) {
                         statusLabel = `⚠️ ส่งล่าช้า (จริง: ${bill.shipped_date})`;
                         extraStyle = "color: #dc3545; font-weight: bold;";
-                    } else if (bill.shipped_date === viewDate && bill.import_date < viewDate) {
-                         statusLabel = `🔥 เคลียร์ค้าง (รับ: ${bill.import_date})`;
-                         extraStyle = "color: #fd7e14; font-weight: bold;";
                     }
 
-                    const itemsByCat = {};
-                    bill.items.forEach(i => { let cat = i.cat || 'สินค้าทั่วไป'; if (!itemsByCat[cat]) itemsByCat[cat] = []; itemsByCat[cat].push(i); });
+                    const itemsByCat = (bill.items || []).reduce((acc, i) => { let cat = i.cat || 'สินค้าทั่วไป'; if (!acc[cat]) acc[cat] = []; acc[cat].push(i); return acc; }, {});
                     let detailsHtml = '';
-                    if(bill.items[0]?.customer !== '-' || bill.items[0]?.date !== '-') detailsHtml += `<div style="padding:5px 15px; font-size:0.85em; color:#666; background:#f8f9fa; border-bottom:1px solid #eee;">👤 ลูกค้า: <strong>${bill.items[0]?.customer}</strong> | 📅 วันที่: ${bill.items[0]?.date}</div>`;
-                    
                     for (const [catName, items] of Object.entries(itemsByCat)) {
                         detailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${items.length}</span></div>`;
-                        items.forEach(i => detailsHtml += `<div class="item-row"><span style="color:#007bff; font-size:0.85em;">[${i.uid}]</span> <strong>${i.name}</strong> <span class="badge bg-warning-light">x${i.qty}</span><br><small style="color:#666; margin-left:10px;">${i.desc}</small></div>`);
+                        items.forEach(i => detailsHtml += `<div class="item-row"><strong>${i.name}</strong> <span class="badge bg-warning-light">x${i.qty}</span><br><small style="color:#666; margin-left:10px;">${i.desc}</small></div>`);
                     }
 
                     const row = document.createElement('div');
                     row.innerHTML = `
                         <div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')">
-                            <div style="flex:1">
-                                <strong>${bill.order_id}</strong> 
-                                <span style="font-size:0.8em; color:#888;">(${bill.items.length} รายการ)</span>
-                                <div style="font-size:0.75em; margin-top:2px; ${extraStyle}">สถานะ: ${statusLabel}</div>
-                            </div>
+                            <div><strong>${bill.order_id}</strong><div style="font-size:0.8em; ${extraStyle}">สถานะ: ${statusLabel}</div></div>
                             <select onchange="updateBillStatus('${bill.order_id}', this.value)" onclick="event.stopPropagation()" style="padding:5px; border-radius:5px; border:1px solid #ccc;">
-                                ${customStatuses.map(s => `<option value="${s}" ${s===bill.status?'selected':''}>${s}</option>`).join('')}
+                                ${customStatuses.map(s => `<option value="${s}" ${s === bill.status ? 'selected' : ''}>${s}</option>`).join('')}
                             </select>
                         </div>
                         <div class="invoice-details">${detailsHtml}</div>`;
@@ -563,9 +465,9 @@
                 container.appendChild(groupDiv);
             }
         }
-
+        
         // ==========================================
-        //  UPLOAD HANDLER
+        //  UPLOAD HANDLER & ACTIONS
         // ==========================================
         document.getElementById('dash-upload').onchange = async (e) => {
             const files = e.target.files;
@@ -582,28 +484,21 @@
             }
 
             let groupedData = {}; 
-            for (let i = 0; i < files.length; i++) {
-                const wb = await readExcelFile(files[i]);
+            for (let file of files) {
+                const wb = await readExcelFile(file);
                 const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 sheetData.forEach(row => {
-                    const rawId = getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID']);
-                    const billId = String(rawId).trim();
+                    const billId = String(getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID'])).trim();
                     if(billId && billId !== 'undefined' && billId !== '') {
-                        const excelStatus = String(getCol(row, ['สถานะ', 'Status', 'Delivery Status']) || '');
-                        const rawShipped = getCol(row, ['เวลาสแกนส่ง', 'วันที่ส่ง', 'Shipped Date', 'Delivery Date', 'Send Date']);
-                        const shippedDateISO = parseToISODate(rawShipped);
-
+                        const shippedDateISO = parseToISODate(getCol(row, ['เวลาสแกนส่ง', 'วันที่ส่ง', 'Shipped Date']));
                         const itemData = {
-                            uid: getCol(row, ['Item UID', 'UID', 'Item ID']) || '-',
-                            name: getCol(row, ['ชื่อสินค้า', 'Product', 'Product Name', 'Item Name']) || 'ไม่ระบุชื่อ',
+                            name: getCol(row, ['ชื่อสินค้า', 'Product', 'Product Name']) || 'ไม่ระบุชื่อ',
                             cat: getCol(row, ['หมวดหมู่', 'Category', 'Group']) || 'อื่นๆ',
-                            desc: getCol(row, ['รายละเอียดสินค้า', 'Description', 'Detail', 'Desc']) || '-',
-                            qty: getCol(row, ['จำนวน', 'Qty', 'Quantity', 'Amount']) || '1',
-                            customer: getCol(row, ['ชื่อลูกค้า', 'Customer', 'Customer Name']) || '-',
-                            date: getCol(row, ['วันที่สั่งซื้อ', 'Order Date', 'Date']) || '-'
+                            desc: getCol(row, ['รายละเอียดสินค้า', 'Description']) || '-',
+                            qty: getCol(row, ['จำนวน', 'Qty', 'Quantity']) || '1',
                         };
-                        if (!groupedData[billId]) groupedData[billId] = { items: [], excelStatus: excelStatus, shippedDate: shippedDateISO };
-                        if (shippedDateISO) groupedData[billId].shippedDate = shippedDateISO;
+                        if (!groupedData[billId]) groupedData[billId] = { items: [], shippedDate: shippedDateISO };
+                        if (shippedDateISO) groupedData[billId].shippedDate = shippedDateISO; // Always take the latest found shipped date
                         groupedData[billId].items.push(itemData);
                     }
                 });
@@ -612,90 +507,84 @@
             let upsertList = [];
             for (const [bid, data] of Object.entries(groupedData)) {
                 const oldRecord = existingMap.get(bid);
-                const finalImportDate = oldRecord ? oldRecord.date : inputDate;
-                
-                let finalShippedDate = data.shippedDate;
-                if (!finalShippedDate && oldRecord && oldRecord.shipped_date) finalShippedDate = oldRecord.shipped_date;
-                
-                let finalStatus = oldRecord ? oldRecord.status : 'รอผลิต';
-                // Smart Status Update
-                const isExcelShipped = data.excelStatus.includes('จัดส่งแล้ว') || data.excelStatus.toLowerCase().includes('shipped') || !!data.shippedDate;
-                if (isExcelShipped) finalStatus = 'จัดส่งแล้ว';
-                if (finalShippedDate) finalStatus = 'จัดส่งแล้ว';
+                let finalStatus = (oldRecord ? oldRecord.status : 'รอผลิต');
+                if (data.shippedDate) finalStatus = 'จัดส่งแล้ว';
 
                 upsertList.push({
                     order_id: bid,
                     items: data.items,
                     status: finalStatus,
-                    import_date: finalImportDate,
-                    shipped_date: finalShippedDate
+                    import_date: oldRecord ? oldRecord.date : inputDate,
+                    shipped_date: data.shippedDate || (oldRecord ? oldRecord.shipped_date : null)
                 });
             }
 
             if(upsertList.length > 0 && db) {
-                const chunkSize = 100;
-                for (let i = 0; i < upsertList.length; i += chunkSize) {
-                    const chunk = upsertList.slice(i, i + chunkSize);
-                    await db.from('production_data').upsert(chunk, { onConflict: 'order_id' });
+                for (let i = 0; i < upsertList.length; i += 100) {
+                    await db.from('production_data').upsert(upsertList.slice(i, i + 100), { onConflict: 'order_id' });
                 }
                 alert(`✅ นำเข้าข้อมูลเรียบร้อย! (${upsertList.length} บิล)`);
                 await loadDashboardDates();
                 document.getElementById('dash-date-filter').value = inputDate;
-                fetchDashboardData();
-            } else {
-                alert('❌ ไม่พบข้อมูลเลขบิล');
-            }
+                await fetchDashboardData();
+            } else { alert('❌ ไม่พบข้อมูลเลขบิล'); }
             document.getElementById('loading-overlay').style.display = 'none';
-            document.getElementById('dash-upload').value = ''; 
+            e.target.value = ''; 
         };
 
         window.updateBillStatus = async (id, newStatus) => {
             const idx = rawDataList.findIndex(x => x.order_id === id);
             if(idx > -1) rawDataList[idx].status = newStatus;
-            
-            // Re-render
-            const selectedDate = document.getElementById('dash-date-filter').value;
-            renderDashboard(selectedDate);
-
-            if(!db) return;
-            await db.from('production_data').update({ status: newStatus }).eq('order_id', id);
+            renderDashboard(document.getElementById('dash-date-filter').value);
+            if(db) await db.from('production_data').update({ status: newStatus }).eq('order_id', id);
         };
-
-        // --- Copy Summary (Smart Logic) ---
+        
         window.copyFullSummary = () => {
             if(!rawDataList.length) { alert('ไม่มีข้อมูลให้สรุป'); return; }
             const selectedDate = document.getElementById('dash-date-filter').value;
             
-            let incoming = 0;
-            let producedNormal = 0;
-            let producedBacklog = 0;
-            let pending = 0;
-            let late = 0;
+            let incoming = 0, producedNormal = 0, producedBacklog = 0, totalPendingLate = 0;
+            const pendingDetails = {};
 
             rawDataList.forEach(row => {
-                if (row.import_date === selectedDate) {
+                const iDate = row.import_date;
+                const sDate = row.shipped_date;
+
+                if (iDate === selectedDate) {
                     incoming++;
-                    if (row.shipped_date === selectedDate) producedNormal++;
-                    else if (row.shipped_date && row.shipped_date > selectedDate) late++;
-                    else if (!row.shipped_date) pending++;
-                } else if (row.shipped_date === selectedDate && row.import_date < selectedDate) {
+                    if (sDate === selectedDate) producedNormal++;
+                    else {
+                        const isPendingOrLate = !sDate || sDate > selectedDate;
+                        if(isPendingOrLate){
+                            totalPendingLate++;
+                            const chan = getChannel(row.order_id);
+                            const summaryStatus = !sDate ? 'กำลังผลิต' : 'ส่งล่าช้า';
+                            if (!pendingDetails[chan]) pendingDetails[chan] = {};
+                            if (!pendingDetails[chan][summaryStatus]) pendingDetails[chan][summaryStatus] = 0;
+                            pendingDetails[chan][summaryStatus]++;
+                        }
+                    }
+                } else if (sDate === selectedDate && iDate < selectedDate) {
                     producedBacklog++;
                 }
             });
-
+            
             let text = `📊 สรุปงานผลิตประจำวันที่ ${selectedDate}\n========================\n`;
             text += `📥 รับงานใหม่: ${incoming} บิล\n`;
             text += `🚀 ผลิตเสร็จรวม: ${producedNormal + producedBacklog} บิล\n`;
             text += `   - ✅ ทันแผน (วันนี้): ${producedNormal}\n`;
             text += `   - 🔥 เคลียร์ค้าง (เก่า): ${producedBacklog}\n\n`;
-            text += `⚠️ คงค้าง/ล่าช้า: ${pending + late} บิล\n`;
-            text += `   - กำลังผลิต: ${pending}\n`;
-            text += `   - ส่งล่าช้า: ${late}\n`;
+            text += `⚠️ คงค้าง/ล่าช้า: ${totalPendingLate} บิล\n`;
 
+            for (const channel in pendingDetails) {
+                text += ` ${channel}\n`;
+                for (const status in pendingDetails[channel]) {
+                    text += `   - ${status}: ${pendingDetails[channel][status]}\n`;
+                }
+            }
             navigator.clipboard.writeText(text).then(() => alert('คัดลอกสรุปเรียบร้อย!'));
         };
 
-        // --- Status Tag Helpers ---
         function addCustomStatus() {
             const v = document.getElementById('status-input').value.trim();
             if(v && !customStatuses.includes(v)) {
@@ -705,7 +594,7 @@
             }
         }
         function removeCustomStatus(s) {
-            if(confirm('ต้องการลบสถานะ "'+s+'" หรือไม่?')) {
+            if(confirm(`ต้องการลบสถานะ "${s}" หรือไม่?`)) {
                 customStatuses = customStatuses.filter(x => x !== s);
                 localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
                 renderStatusTags(); renderDashboard(document.getElementById('dash-date-filter').value);
@@ -713,13 +602,13 @@
         }
         function renderStatusTags() {
             const c = document.getElementById('status-tags-list');
-            if(c) c.innerHTML = customStatuses.map(s => `<span class="status-tag" style="margin-right:5px; padding:2px 12px; border:1px solid #ddd; border-radius:15px; background:white; display:inline-flex; align-items:center; gap:5px;">${s} <span onclick="removeCustomStatus('${s}')" style="cursor:pointer; color:red; font-weight:bold; margin-left:5px;">&times;</span></span>`).join('');
+            c.innerHTML = customStatuses.map(s => `<span style="margin-right:5px; padding:2px 12px; border:1px solid #ddd; border-radius:15px; background:white; display:inline-flex; align-items:center; gap:5px;">${s} <span onclick="removeCustomStatus('${s}')" style="cursor:pointer; color:red; font-weight:bold; margin-left:5px;">&times;</span></span>`).join('');
         }
 
-        window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production-${new Date().toLocaleDateString('th-TH')}.png`; link.href = canvas.toDataURL(); link.click(); }); };
+        window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production_Dashboard.png`; link.href = canvas.toDataURL(); link.click(); }); };
         window.exportKPIPNG = () => { html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `KPI-${activeDept}.png`; link.href = canvas.toDataURL(); link.click(); }); };
 
-        // --- KPI Section (Original Logic Preserved) ---
+        // --- KPI Section ---
         document.getElementById('kpi-upload').onchange = async (e) => {
             const files = e.target.files;
             if (!files.length) return;
@@ -727,8 +616,8 @@
             if(!selectedDate) { alert("กรุณาเลือกวันที่ของข้อมูลก่อน"); e.target.value = ''; return; }
             document.getElementById('loading-overlay').style.display = 'flex';
             let uploadCount = 0;
-            for (let i = 0; i < files.length; i++) {
-                const wb = await readExcelFile(files[i]);
+            for (let file of files) {
+                const wb = await readExcelFile(file);
                 for (let sheetName of wb.SheetNames) {
                     const data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { raw: true });
                     if(data.length === 0) continue;
@@ -745,7 +634,7 @@
             }
             alert(`✅ อัปโหลด KPI เสร็จสิ้น (${uploadCount} รายการ)`);
             document.getElementById('loading-overlay').style.display = 'none';
-            document.getElementById('kpi-upload').value = '';
+            e.target.value = '';
             await loadKPIDates(); document.getElementById('kpi-date-filter').value = selectedDate; fetchKPIDataByDate();
         };
         async function loadKPIDates() {
@@ -782,10 +671,8 @@
         function changeDept(name) { activeDept = name; renderKPITabs(); updateJobFilterDropdown(); recalculateKPI(); }
         function updateJobFilterDropdown() { 
             if (!activeDept || !kpiAllDepts[activeDept]) return;
-            const data = kpiAllDepts[activeDept];
             const select = document.getElementById('kpi-job-filter');
-            const jobs = new Set();
-            data.forEach(r => { const name = getCol(r, ['ชื่อใบงาน', 'ชื่อสินค้า']); if(name) jobs.add(name); });
+            const jobs = new Set(kpiAllDepts[activeDept].map(r => getCol(r, ['ชื่อใบงาน', 'ชื่อสินค้า'])).filter(Boolean));
             select.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
             jobs.forEach(job => { const opt = document.createElement('option'); opt.value = job; opt.innerText = job; select.appendChild(opt); });
         }
@@ -795,85 +682,93 @@
             const aStart = parseTime(getCol(row, ['เริ่มจริง']));
             const aEnd = parseTime(getCol(row, ['เสร็จจริง']));
             if(!aEnd || !pStart || !pEnd || !aStart) return null;
-            const pDuration = Math.max(1, Math.round((pEnd - pStart) / 60000));
-            const aDuration = Math.max(1, Math.round((aEnd - aStart) / 60000));
-            const delayMin = Math.round((aEnd - pEnd) / 60000);
+            const pDuration = Math.max(1, (pEnd - pStart) / 60000);
+            const aDuration = Math.max(1, (aEnd - aStart) / 60000);
+            const delayMin = (aEnd - pEnd) / 60000;
             const timeExceeded = Math.max(0, aDuration - pDuration);
             let scoreOnTime = (delayMin <= 0) ? 100 : Math.round((pDuration / (pDuration + delayMin)) * 100);
             let scoreEff = Math.min(100, Math.round((pDuration / aDuration) * 100));
-            return { pStart, pEnd, aStart, aEnd, pDuration, aDuration, delayMin, timeExceeded, scoreOnTime, scoreEff };
+            return { pStart, pEnd, aStart, aEnd, pDuration: Math.round(pDuration), aDuration: Math.round(aDuration), delayMin: Math.round(delayMin), timeExceeded: Math.round(timeExceeded), scoreOnTime, scoreEff };
+        }
+        function adjustWeights(changedInputId) {
+            const onTimeInput = document.getElementById('w-ontime');
+            const effInput = document.getElementById('w-eff');
+            let onTimeValue = parseInt(onTimeInput.value) || 0;
+            
+            if (changedInputId === 'w-ontime') {
+                if (onTimeValue > 100) onTimeValue = 100;
+                if (onTimeValue < 0) onTimeValue = 0;
+                onTimeInput.value = onTimeValue;
+                effInput.value = 100 - onTimeValue;
+            } else { // w-eff changed
+                let effValue = parseInt(effInput.value) || 0;
+                if (effValue > 100) effValue = 100;
+                if (effValue < 0) effValue = 0;
+                effInput.value = effValue;
+                onTimeInput.value = 100 - effValue;
+            }
+            recalculateKPI();
         }
         function recalculateKPI() {
             if(!activeDept) return;
             const data = kpiAllDepts[activeDept];
-            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
-            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
+            const wOnTime = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEff = parseFloat(document.getElementById('w-eff').value) / 100;
             const filterJob = document.getElementById('kpi-job-filter').value;
-            document.getElementById('dept-title-png').innerText = `สรุปผลแผนก: ${activeDept} ${filterJob !== 'ALL' ? '(เฉพาะใบงาน: ' + filterJob + ')' : ''}`;
+            document.getElementById('dept-title-png').innerText = `สรุปผลแผนก: ${activeDept} ${filterJob !== 'ALL' ? `(เฉพาะ: ${filterJob})` : ''}`;
             let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
             const tbody = document.getElementById('kpi-table-body');
             tbody.innerHTML = "";
-            data.forEach((row, idx) => {
+            data.forEach((row) => {
                 const jobName = getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']);
                 if (filterJob !== 'ALL' && jobName !== filterJob) return;
                 const res = getKPIRowData(row);
                 if(!res) return;
-                const finalScore = Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
+                const finalScore = Math.round((res.scoreOnTime * wOnTime) + (res.scoreEff * wEff));
                 totalWeighted += finalScore; totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${count}</td><td><strong>${jobName}</strong></td><td>${getCol(row, ['จำนวน', 'Qty', 'Quantity'])||'-'}</td><td>${fmtTime(res.pStart)}</td><td>${fmtTime(res.pEnd)}</td><td>${fmtTime(res.aStart)}</td><td>${fmtTime(res.aEnd)}</td><td>${res.aDuration} / ${res.pDuration} น.</td><td class="${res.timeExceeded > 0 ? 'text-danger' : ''}">${res.timeExceeded > 0 ? res.timeExceeded + ' น.' : '0'}</td><td class="${res.delayMin > 0 ? 'text-danger' : ''}">${res.delayMin > 0 ? res.delayMin + ' น.' : '0'}</td><td><span class="badge ${res.scoreOnTime >= 80 ? 'bg-success-light' : (res.scoreOnTime >= 50 ? 'bg-warning-light' : 'bg-danger-light')}">${res.scoreOnTime}%</span></td><td><span class="badge bg-success-light">${res.scoreEff}%</span></td><td class="score-box">${finalScore}</td>`;
+                tr.innerHTML = `<td>${count}</td><td><strong>${jobName}</strong></td><td>${getCol(row, ['จำนวน', 'Qty'])||'-'}</td><td>${fmtTime(res.pStart)}</td><td>${fmtTime(res.pEnd)}</td><td>${fmtTime(res.aStart)}</td><td>${fmtTime(res.aEnd)}</td><td class="${res.timeExceeded > 0 ? 'text-danger':''}">${res.timeExceeded} น.</td><td class="${res.delayMin > 0 ? 'text-danger':''}">${res.delayMin} น.</td><td><span class="badge ${res.scoreOnTime >= 80 ? 'bg-success-light' : 'bg-warning-light'}">${res.scoreOnTime}%</span></td><td><span class="badge bg-success-light">${res.scoreEff}%</span></td><td class="score-box">${finalScore}</td>`;
                 tbody.appendChild(tr);
             });
-            document.getElementById('kpi-summary-cards').innerHTML = `<div class="stat-card" style="border-left-color: var(--purple);"><h3>KPI รวมแผนก</h3><div class="count">${count > 0 ? Math.round(totalWeighted/count) : 0}</div><div class="sub">เฉลี่ยจาก ${count} งาน</div></div><div class="stat-card" style="border-left-color: var(--success);"><h3>ผลสรุป: ตรงแผน</h3><div class="count">${count > 0 ? Math.round(totalOnTime/count) : 0}%</div><div class="sub">ประสิทธิภาพเวลาส่งมอบ</div></div><div class="stat-card" style="border-left-color: var(--info);"><h3>ผลสรุป: ความไว</h3><div class="count">${count > 0 ? Math.round(totalEff/count) : 0}%</div><div class="sub">ประสิทธิภาพการผลิต</div></div>`;
+            const avg = (total, c) => c > 0 ? Math.round(total/c) : 0;
+            document.getElementById('kpi-summary-cards').innerHTML = `<div class="stat-card" style="border-left-color: var(--purple);"><h3>KPI รวมแผนก</h3><div class="count">${avg(totalWeighted,count)}</div><div class="sub">เฉลี่ยจาก ${count} งาน</div></div><div class="stat-card" style="border-left-color: var(--success);"><h3>ผลสรุป: ตรงแผน</h3><div class="count">${avg(totalOnTime,count)}%</div></div><div class="stat-card" style="border-left-color: var(--info);"><h3>ผลสรุป: ความไว</h3><div class="count">${avg(totalEff,count)}%</div></div>`;
         }
         window.exportKPIToExcel = () => {
             const wb = XLSX.utils.book_new();
-            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
-            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
-            const filterJob = document.getElementById('kpi-job-filter').value; 
+            const wOnTime = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEff = parseFloat(document.getElementById('w-eff').value) / 100;
             const overallSummary = [];
             for (let deptName in kpiAllDepts) {
                 const sheetData = [];
-                let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
-                kpiAllDepts[deptName].forEach((row, idx) => {
-                    if (deptName === activeDept && filterJob !== 'ALL' && getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']) !== filterJob) return;
-                    const res = getKPIRowData(row);
-                    if(!res) return;
-                    const finalScore = Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
-                    totalWeighted += finalScore; totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
-                    sheetData.push({ "ลำดับ": count, "ใบงาน": getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']), "ตรงแผน(%)": res.scoreOnTime, "ความไว(%)": res.scoreEff, "คะแนนรวม": finalScore });
-                });
-                if(count > 0) {
-                    const avgW = Math.round(totalWeighted/count);
-                    overallSummary.push({ "ชื่อแผนก": deptName, "จำนวนใบงาน": count, "คะแนนรวมเฉลี่ย": avgW });
-                    const ws = XLSX.utils.json_to_sheet(sheetData);
-                    XLSX.utils.book_append_sheet(wb, ws, deptName);
-                }
-            }
-            const wsSum = XLSX.utils.json_to_sheet(overallSummary);
-            XLSX.utils.book_append_sheet(wb, wsSum, "ภาพรวม");
-            XLSX.writeFile(wb, `KPI_Summary.xlsx`);
-        };
-        window.copyAllDeptsSummary = () => {
-            const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
-            const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
-            const dateStr = document.getElementById('kpi-date-filter').value;
-            let summaryText = `📊 สรุป KPI ประจำวันที่ ${dateStr}\n========================\n`;
-            for (let deptName in kpiAllDepts) {
-                let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
+                let totalWeighted = 0, count = 0;
                 kpiAllDepts[deptName].forEach(row => {
                     const res = getKPIRowData(row);
                     if(!res) return;
-                    totalWeighted += Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
-                    totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
+                    const finalScore = Math.round((res.scoreOnTime * wOnTime) + (res.scoreEff * wEff));
+                    totalWeighted += finalScore; count++;
+                    sheetData.push({ "ใบงาน": getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']), "ตรงแผน(%)": res.scoreOnTime, "ความไว(%)": res.scoreEff, "คะแนนรวม": finalScore });
                 });
                 if(count > 0) {
-                    summaryText += `📍 แผนก: ${deptName}\n`;
-                    summaryText += `   1. %คะแนนรวม: ${Math.round(totalWeighted/count)}%\n`;
-                    summaryText += `   2. %ส่งตรงแผน: ${Math.round(totalOnTime/count)}%\n`;
-                    summaryText += `   3. %ความไว: ${Math.round(totalEff/count)}%\n`;
-                    summaryText += `------------------------\n`;
+                    overallSummary.push({ "ชื่อแผนก": deptName, "จำนวนใบงาน": count, "คะแนนรวมเฉลี่ย": Math.round(totalWeighted/count) });
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetData), deptName);
                 }
+            }
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(overallSummary), "ภาพรวม");
+            XLSX.writeFile(wb, `KPI_Summary_${document.getElementById('kpi-date-filter').value}.xlsx`);
+        };
+        window.copyAllDeptsSummary = () => {
+            const wOnTime = parseFloat(document.getElementById('w-ontime').value) / 100;
+            const wEff = parseFloat(document.getElementById('w-eff').value) / 100;
+            let summaryText = `📊 สรุป KPI ประจำวันที่ ${document.getElementById('kpi-date-filter').value}\n========================\n`;
+            for (let deptName in kpiAllDepts) {
+                let totalW = 0, totalOT = 0, totalE = 0, count = 0;
+                kpiAllDepts[deptName].forEach(row => {
+                    const res = getKPIRowData(row);
+                    if(!res) return;
+                    totalW += (res.scoreOnTime * wOnTime) + (res.scoreEff * wEff);
+                    totalOT += res.scoreOnTime; totalE += res.scoreEff; count++;
+                });
+                if(count > 0) summaryText += `📍 แผนก: ${deptName}\n   - คะแนนรวม: ${Math.round(totalW/count)}%\n   - ตรงแผน: ${Math.round(totalOT/count)}%\n   - ความไว: ${Math.round(totalE/count)}%\n------------------------\n`;
             }
             navigator.clipboard.writeText(summaryText).then(() => alert('คัดลอกสรุป KPI แล้ว!'));
         };
