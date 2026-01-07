@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Production & KPI System (Enhanced Copy)</title>
+    <title>Production System (Complete Edition)</title>
     <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -29,7 +29,7 @@
         
         .card { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow); margin-bottom: 20px; }
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; color: var(--dark); }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin: 15px 0; }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin: 15px 0; }
         .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: var(--shadow); border-left: 5px solid var(--primary); }
         .stat-card h3 { margin: 0; font-size: 0.9em; color: #666; }
         .stat-card .count { font-size: 2.2rem; font-weight: 600; color: var(--primary); margin: 5px 0; }
@@ -110,7 +110,7 @@
                 <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
                     
                     <div style="background:#fff3cd; padding:5px 10px; border-radius:6px; border:1px solid #ffeeba;">
-                        <label for="import-date-dash" style="font-weight:bold; font-size:0.9em;">📅 วันที่ของข้อมูล:</label>
+                        <label for="import-date-dash" style="font-weight:bold; font-size:0.9em;">📅 วันที่รับออเดอร์ (Import Date):</label>
                         <input type="date" id="import-date-dash" class="date-input">
                     </div>
 
@@ -118,6 +118,10 @@
                     <button class="btn btn-primary" onclick="document.getElementById('dash-upload').click()">📁 เลือกไฟล์ Excel</button>
                     
                     <div id="upload-status" style="margin-left:auto; font-weight:bold; color:var(--success);"></div>
+                </div>
+                <div style="margin-top:10px; font-size:0.85em; color:#666;">
+                    * <b>Auto Fix:</b> แปลงวันที่ 6/1/2569 -> 2026-01-06 และอ่านค่าจากช่อง "เวลาสแกนส่ง" หรือ "Shipped Date"<br>
+                    * <b>Logic:</b> ถ้ามีวันที่ส่ง = อัปเดตเป็น "จัดส่งแล้ว", ถ้าไม่มี = คงสถานะเดิม
                 </div>
             </div>
 
@@ -148,7 +152,7 @@
 
                 <div style="margin-top: 40px; border-top: 2px solid #ddd; padding-top: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>📦 รายการบิลค้างผลิต</h2>
+                        <h2>📦 รายการบิล</h2>
                         <div style="display:flex; gap:10px;">
                             <input type="text" id="status-input" placeholder="เพิ่มสถานะใหม่..." style="padding:5px 10px; border:1px solid #ddd; border-radius:5px;">
                             <button class="btn btn-success btn-sm" onclick="addCustomStatus()">+</button>
@@ -248,35 +252,49 @@
         try { db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } 
         catch (err) { console.error('Supabase init fail', err); }
 
-        // ตัวแปร Global
         let rawDataList = [];
         let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอผลิต", "กำลังผลิต", "รอส่งช่าง", "ติดปัญหา", "รอแพ็ค", "จัดส่งแล้ว"]');
         let kpiAllDepts = {};
         let activeDept = "";
 
         // ==========================================
-        //  INIT
+        //  HELPER FUNCTIONS
         // ==========================================
-        window.onload = async () => {
-            // ตั้งค่า Default วันที่ให้ Input
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('import-date-dash').value = today;
-            document.getElementById('import-date-kpi').value = today;
+        // ฟังก์ชันแปลงวันที่ (รองรับ Excel Serial, d/m/yyyy, พ.ศ.)
+        function parseToISODate(value) {
+            if (!value || value === '-' || String(value).trim() === '-') return null;
+            
+            // 1. Excel Serial Number
+            if (typeof value === 'number') {
+                const dateObj = new Date(Math.round((value - 25569) * 86400 * 1000));
+                return dateObj.toISOString().split('T')[0];
+            }
 
-            renderStatusTags();
+            const strVal = String(value).trim();
+            // เอาเฉพาะวันที่ ตัดเวลาทิ้ง (กรณี "6/1/2569 15:20:32")
+            const datePart = strVal.split(' ')[0];
 
-            // โหลดรายการวันที่ที่มีในระบบ
-            await loadDashboardDates();
-            await loadKPIDates();
+            // 2. Format d/m/yyyy หรือ d-m-yyyy
+            if (datePart.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/)) {
+                const parts = datePart.split(/[\/\-]/);
+                let d = parseInt(parts[0]);
+                let m = parseInt(parts[1]);
+                let y = parseInt(parts[2]);
 
-            document.getElementById('loading-overlay').style.display = 'none';
-        };
+                // แปลง พ.ศ. -> ค.ศ.
+                if (y > 2400) y -= 543;
 
-        function showPage(pageId, el) {
-            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            el.classList.add('active');
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-' + pageId).classList.add('active');
+                const yy = y.toString();
+                const mm = m.toString().padStart(2, '0');
+                const dd = d.toString().padStart(2, '0');
+                return `${yy}-${mm}-${dd}`;
+            }
+
+            // 3. Fallback standard parse
+            const dateObj = new Date(strVal);
+            if (!isNaN(dateObj.getTime())) return dateObj.toISOString().split('T')[0];
+
+            return null;
         }
 
         const getChannel = (id) => {
@@ -295,8 +313,6 @@
             return '';
         };
 
-        const getItemWeight = (name) => 1; // Default count as 1
-
         function readExcelFile(file) {
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
@@ -307,213 +323,187 @@
         }
 
         // ==========================================
-        //  PART 1: DASHBOARD LOGIC
+        //  INIT & LOAD DATES
         // ==========================================
-        
+        window.onload = async () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('import-date-dash').value = today;
+            document.getElementById('import-date-kpi').value = today;
+            renderStatusTags();
+            await loadDashboardDates();
+            await loadKPIDates();
+            document.getElementById('loading-overlay').style.display = 'none';
+        };
+
+        function showPage(pageId, el) {
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            el.classList.add('active');
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById('page-' + pageId).classList.add('active');
+        }
+
         async function loadDashboardDates() {
             if(!db) return;
-            const { data, error } = await db.from('production_data').select('import_date');
+            // ดึงวันที่มีข้อมูลทั้งหมด (ทั้งวันที่ Import และวันที่ส่ง)
+            const { data, error } = await db.from('production_data').select('import_date, shipped_date');
             if(error) return;
 
-            const dates = [...new Set(data.map(item => item.import_date || 'Unknown'))].sort().reverse();
+            let dateSet = new Set();
+            data.forEach(item => {
+                if(item.import_date) dateSet.add(item.import_date);
+                if(item.shipped_date) dateSet.add(item.shipped_date);
+            });
             
+            const dates = [...dateSet].sort().reverse();
             const select = document.getElementById('dash-date-filter');
             select.innerHTML = '';
             
             if(dates.length === 0) {
-                select.innerHTML = '<option value="">ไม่มีข้อมูล</option>';
-                return;
+                select.innerHTML = '<option value="">ไม่มีข้อมูล</option>'; return;
             }
-
             dates.forEach(d => {
                 const opt = document.createElement('option');
                 opt.value = d;
-                opt.innerText = (d === 'Unknown') ? 'ไม่ระบุวันที่' : d;
+                opt.innerText = d;
                 select.appendChild(opt);
             });
-
             select.value = dates[0];
             fetchDashboardData();
         }
 
+        // ==========================================
+        //  DASHBOARD CORE LOGIC
+        // ==========================================
         async function fetchDashboardData() {
             if(!db) return;
             const selectedDate = document.getElementById('dash-date-filter').value;
             const statusDiv = document.getElementById('upload-status');
-            
             statusDiv.innerHTML = '⏳ กำลังดึงข้อมูล...';
             
-            let query = db.from('production_data').select('*');
-            if (selectedDate && selectedDate !== 'Unknown') {
-                query = query.eq('import_date', selectedDate);
-            } else if (selectedDate === 'Unknown') {
-                 query = query.is('import_date', null);
-            }
+            if (!selectedDate) return;
+
+            // ดึงข้อมูล 2 กลุ่ม: 
+            // 1. รับเข้าวันนี้ (Import Date = selected)
+            // 2. ส่งออกวันนี้ (Shipped Date = selected)
+            const { data, error } = await db.from('production_data')
+                .select('*')
+                .or(`import_date.eq.${selectedDate},shipped_date.eq.${selectedDate}`);
             
-            const { data, error } = await query;
-            
-            if (error) {
-                alert('โหลดข้อมูลล้มเหลว: ' + error.message);
-                return;
-            }
+            if (error) { alert('โหลดข้อมูลล้มเหลว: ' + error.message); return; }
 
             rawDataList = data; 
-            statusDiv.innerHTML = `✅ ข้อมูลวันที่ ${selectedDate}: ${rawDataList.length} บิล`;
-            renderDashboard();
+            renderDashboard(selectedDate);
+            statusDiv.innerHTML = `✅ ข้อมูลประจำวันที่ ${selectedDate}`;
         }
 
-        document.getElementById('dash-upload').onchange = async (e) => {
-            const files = e.target.files;
-            if (!files.length) return;
-
-            const selectedDate = document.getElementById('import-date-dash').value;
-            if(!selectedDate) {
-                alert("กรุณาเลือกวันที่ของข้อมูลก่อน");
-                e.target.value = '';
-                return;
-            }
+        function renderDashboard(targetDate) {
+            // Variables for Calculation
+            let incomingOrders = 0;      // รับเข้าวันนี้
+            let producedTodayNormal = 0; // รับวันนี้-เสร็จวันนี้ (On Time)
+            let producedTodayBacklog = 0;// รับวันอื่น-เสร็จวันนี้ (Cleared Backlog)
+            let pendingOnDay = 0;        // ค้าง (ยังไม่ส่ง)
+            let shippedLate = 0;         // ค้าง (ส่งช้ากว่าวันนี้)
             
-            if(!confirm(`ยืนยันการนำเข้าข้อมูลสำหรับวันที่: ${selectedDate} ?\n• หากมีบิลซ้ำในวันนี้ จะอัปเดตข้อมูล\n• ถ้าบิลนี้เคยอยู่วันอื่น ระบบจะย้ายมาวันที่นี้`)) return;
+            let listItems = [];          // Items for List View
 
-            document.getElementById('loading-overlay').style.display = 'flex';
-            
-            let existingStatuses = {};
-            if(db) {
-                const { data: oldData } = await db.from('production_data').select('order_id, status');
-                if(oldData) oldData.forEach(r => existingStatuses[r.order_id] = r.status);
-            }
+            rawDataList.forEach(row => {
+                const iDate = row.import_date;
+                const sDate = row.shipped_date;
 
-            let groupedData = {}; 
-
-            for (let i = 0; i < files.length; i++) {
-                const wb = await readExcelFile(files[i]);
-                const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
-                
-                sheetData.forEach(row => {
-                    const rawId = getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID']);
-                    const billId = String(rawId).trim();
+                // --- 1. งานรับเข้า (Workload) ---
+                if (iDate === targetDate) {
+                    incomingOrders++;
                     
-                    if(billId && billId !== 'undefined' && billId !== '') {
-                        const excelStatus = String(getCol(row, ['สถานะ', 'Status', 'Delivery Status']) || '');
-                        
-                        const itemData = {
-                            uid: getCol(row, ['Item UID', 'UID', 'Item ID']) || '-',
-                            name: getCol(row, ['ชื่อสินค้า', 'Product', 'Product Name', 'Item Name']) || 'ไม่ระบุชื่อ',
-                            cat: getCol(row, ['หมวดหมู่', 'Category', 'Group']) || 'อื่นๆ',
-                            desc: getCol(row, ['รายละเอียดสินค้า', 'Description', 'Detail', 'Desc']) || '-',
-                            qty: getCol(row, ['จำนวน', 'Qty', 'Quantity', 'Amount']) || '1',
-                            customer: getCol(row, ['ชื่อลูกค้า', 'Customer', 'Customer Name']) || '-',
-                            date: getCol(row, ['วันที่สั่งซื้อ', 'Order Date', 'Date']) || '-'
-                        };
-
-                        if (!groupedData[billId]) {
-                            groupedData[billId] = { items: [], hasShippedStatus: false };
-                        }
-                        
-                        if (excelStatus.includes('จัดส่งแล้ว') || excelStatus.toLowerCase().includes('shipped')) {
-                            groupedData[billId].hasShippedStatus = true;
-                        }
-
-                        groupedData[billId].items.push(itemData);
+                    // วิเคราะห์สถานะ ณ วันที่เลือก (Target Date)
+                    if (sDate === targetDate) {
+                        producedTodayNormal++; // เสร็จทัน
+                        listItems.push(row);
+                    } else if (sDate && sDate > targetDate) {
+                        shippedLate++; // เสร็จนะ แต่เสร็จวันหลัง -> วันนี้ถือว่า "ส่งล่าช้า"
+                        listItems.push(row);
+                    } else if (!sDate) {
+                        pendingOnDay++; // ยังไม่เสร็จ
+                        listItems.push(row);
                     }
-                });
-            }
-
-            let upsertList = [];
-            for (const [bid, data] of Object.entries(groupedData)) {
-                let finalStatus = 'รอผลิต';
-                if (data.hasShippedStatus) {
-                    finalStatus = 'จัดส่งแล้ว';
-                } else if (existingStatuses[bid]) {
-                    finalStatus = existingStatuses[bid];
                 }
 
-                upsertList.push({
-                    order_id: bid,
-                    items: data.items,
-                    status: finalStatus,
-                    import_date: selectedDate
-                });
-            }
-
-            if(upsertList.length > 0 && db) {
-                let totalBills = upsertList.length;
-                let totalItems = upsertList.reduce((sum, item) => sum + item.items.length, 0);
-
-                const chunkSize = 100;
-                for (let i = 0; i < upsertList.length; i += chunkSize) {
-                    const chunk = upsertList.slice(i, i + chunkSize);
-                    const { error } = await db.from('production_data').upsert(chunk, { onConflict: 'order_id' });
-                    if(error) console.error('Upload Error', error);
+                // --- 2. ผลงานผลิต (Output) ---
+                if (sDate === targetDate && iDate < targetDate) {
+                    producedTodayBacklog++; // งานค้างเก่า มาเสร็จวันนี้
+                    listItems.push(row);
                 }
-                
-                alert(`✅ นำเข้าข้อมูลเรียบร้อย!\n📄 จำนวนบิล: ${totalBills} บิล\n📦 จำนวนรายการสินค้า: ${totalItems} รายการ`);
-                
-                await loadDashboardDates();
-                document.getElementById('dash-date-filter').value = selectedDate;
-                fetchDashboardData();
+            });
 
-            } else {
-                alert('❌ ไม่พบข้อมูลเลขบิล');
-            }
+            const totalProduced = producedTodayNormal + producedTodayBacklog;
+            const totalPendingView = pendingOnDay + shippedLate; // ยอดรวมที่ยังไม่เสร็จ (หรือเสร็จช้า)
 
-            document.getElementById('loading-overlay').style.display = 'none';
-            document.getElementById('dash-upload').value = ''; 
-        };
-
-        window.updateBillStatus = async (id, newStatus) => {
-            const idx = rawDataList.findIndex(x => x.order_id === id);
-            if(idx > -1) rawDataList[idx].status = newStatus;
-            renderDashboard();
-
-            if(!db) return;
-            const { error } = await db.from('production_data').update({ status: newStatus }).eq('order_id', id);
-            if(error) alert('Error updating status');
-        };
-
-        function renderDashboard() {
-            const pendingData = rawDataList.filter(r => r.status !== 'จัดส่งแล้ว');
-            const deliveredData = rawDataList.filter(r => r.status === 'จัดส่งแล้ว');
-
-            const totalBills = rawDataList.length;
-            const deliveredBills = deliveredData.length;
-            const pendingBills = pendingData.length;
-
-            let totalItems = 0; rawDataList.forEach(r => totalItems += (r.items ? r.items.length : 0));
-            let pendingItems = 0; pendingData.forEach(r => pendingItems += (r.items ? r.items.length : 0));
-
+            // Render Cards
             document.getElementById('dash-main-summary').innerHTML = `
-                <div class="stat-card total"><h3>งานทั้งหมด</h3><div class="count">${totalBills}<span class="unit"> บิล</span></div><div class="sub">${totalItems} รายการ</div></div>
-                <div class="stat-card" style="border-left-color:var(--success)"><h3>จัดส่งแล้ว</h3><div class="count" style="color:var(--success)">${deliveredBills}<span class="unit"> บิล</span></div><div class="sub">เสร็จสิ้น</div></div>
-                <div class="stat-card channel"><h3>งานค้างผลิต</h3><div class="count">${pendingBills}<span class="unit"> บิล</span></div><div class="sub">${pendingItems} รายการ</div></div>
+                <div class="stat-card total">
+                    <h3>📥 งานรับเข้าวันนี้ (New Orders)</h3>
+                    <div class="count">${incomingOrders}<span class="unit"> บิล</span></div>
+                    <div class="sub">วันที่: ${targetDate}</div>
+                </div>
+                
+                <div class="stat-card" style="border-left-color:var(--success)">
+                    <h3>🚀 ผลงานผลิตวันนี้ (Total Output)</h3>
+                    <div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div>
+                    <div class="sub" style="font-size:0.85em; display:flex; gap:15px; margin-top:5px;">
+                         <span>✅ ทันแผน: <b>${producedTodayNormal}</b></span>
+                         <span style="color:#fd7e14;">🔥 เคลียร์ค้าง: <b>${producedTodayBacklog}</b></span>
+                    </div>
+                </div>
+
+                <div class="stat-card channel">
+                    <h3>⚠️ คงเหลือ/ล่าช้า (Pending/Late)</h3>
+                    <div class="count">${totalPendingView}<span class="unit"> บิล</span></div>
+                    <div class="sub" style="font-size:0.85em;">
+                        ค้าง: <b>${pendingOnDay}</b> | เสร็จล่าช้า: <b style="color:red;">${shippedLate}</b>
+                    </div>
+                </div>
             `;
-            
+
+            renderBillList(listItems, targetDate);
+            updateSubCharts(listItems, targetDate);
+        }
+
+        function updateSubCharts(list, viewDate) {
             const channelStats = {};
-            pendingData.forEach(r => {
+            const statusStats = {};
+            
+            list.forEach(r => {
+                // Channel
                 const chan = getChannel(r.order_id);
                 if (!channelStats[chan]) channelStats[chan] = { bills: 0, items: 0 };
                 channelStats[chan].bills++;
-                channelStats[chan].items += r.items.length;
+                channelStats[chan].items += (r.items ? r.items.length : 0);
+
+                // Status
+                let s = r.status;
+                // ถ้ามีวันที่ส่ง และวันที่ส่ง > วันที่ดูอยู่ -> สถานะคือ "ส่งล่าช้า" ในมุมมองวันนี้
+                if(r.shipped_date && r.shipped_date > viewDate) {
+                    s = "⚠️ ส่งล่าช้า";
+                }
+                // ถ้าเคลียร์ค้าง
+                if(r.shipped_date === viewDate && r.import_date < viewDate) {
+                    s = "🔥 เคลียร์ค้าง";
+                }
+                
+                if (!statusStats[s]) statusStats[s] = { bills: 0 };
+                statusStats[s].bills++;
             });
+
             document.getElementById('dash-channel-cards').innerHTML = Object.entries(channelStats).map(([chan, d]) => `
                 <div class="stat-card channel"><h3>${chan}</h3><div class="count">${d.bills}<span class="unit"> บิล</span></div><div class="sub">${d.items} รายการ</div></div>
             `).join('');
 
-            const statusStats = {};
-            pendingData.forEach(r => {
-                const s = r.status;
-                if (!statusStats[s]) statusStats[s] = { bills: 0, items: 0 };
-                statusStats[s].bills++;
-                statusStats[s].items += r.items.length;
-            });
             document.getElementById('dash-status-cards').innerHTML = Object.entries(statusStats).map(([s, d]) => `
-                <div class="stat-card" style="border-left-color:var(--info)"><h3>${s}</h3><div class="count">${d.bills}<span class="unit"> บิล</span></div><div class="sub">${d.items} รายการ</div></div>
+                <div class="stat-card" style="border-left-color:var(--info)"><h3>${s}</h3><div class="count">${d.bills}<span class="unit"> บิล</span></div></div>
             `).join('');
-
-            renderBillList(pendingData);
         }
 
-        function renderBillList(data) {
+        function renderBillList(data, viewDate) {
+            // Group ข้อมูลตาม Channel
             const grouped = data.reduce((acc, r) => {
                 const chan = getChannel(r.order_id);
                 if (!acc[chan]) acc[chan] = [];
@@ -527,44 +517,32 @@
             for (let chan in grouped) {
                 const groupDiv = document.createElement('div');
                 groupDiv.className = 'channel-group';
-                groupDiv.innerHTML = `
-                    <div class="channel-header" onclick="this.nextElementSibling.style.display = (this.nextElementSibling.style.display==='none'?'block':'none')">
-                        ${chan} <span>${grouped[chan].length} บิล ▼</span>
-                    </div>
-                    <div class="channel-body" style="display:block;"></div>`;
-                
+                groupDiv.innerHTML = `<div class="channel-header" onclick="this.nextElementSibling.style.display=(this.nextElementSibling.style.display==='none'?'block':'none')">${chan} <span>${grouped[chan].length} บิล ▼</span></div><div class="channel-body" style="display:block;"></div>`;
                 const body = groupDiv.querySelector('.channel-body');
                 
                 grouped[chan].forEach(bill => {
                     if(!bill.items) return;
-
-                    const itemsByCat = {};
-                    bill.items.forEach(i => {
-                        let cat = i.cat || 'สินค้าทั่วไป';
-                        if (!itemsByCat[cat]) itemsByCat[cat] = [];
-                        itemsByCat[cat].push(i);
-                    });
-
-                    const customerName = bill.items[0]?.customer || '-';
-                    const orderDate = bill.items[0]?.date || '-';
-
-                    let detailsHtml = '';
-                    if(customerName !== '-' || orderDate !== '-') {
-                         detailsHtml += `<div style="padding: 5px 15px; font-size:0.85em; color:#666; background:#f8f9fa; border-bottom:1px solid #eee;">
-                            👤 ลูกค้า: <strong>${customerName}</strong> | 📅 วันที่: ${orderDate}
-                         </div>`;
+                    
+                    // Logic Label
+                    let statusLabel = bill.status;
+                    let extraStyle = "";
+                    
+                    if (bill.shipped_date && bill.shipped_date > viewDate) {
+                        statusLabel = `⚠️ ส่งล่าช้า (จริง: ${bill.shipped_date})`;
+                        extraStyle = "color: #dc3545; font-weight: bold;";
+                    } else if (bill.shipped_date === viewDate && bill.import_date < viewDate) {
+                         statusLabel = `🔥 เคลียร์ค้าง (รับ: ${bill.import_date})`;
+                         extraStyle = "color: #fd7e14; font-weight: bold;";
                     }
 
+                    const itemsByCat = {};
+                    bill.items.forEach(i => { let cat = i.cat || 'สินค้าทั่วไป'; if (!itemsByCat[cat]) itemsByCat[cat] = []; itemsByCat[cat].push(i); });
+                    let detailsHtml = '';
+                    if(bill.items[0]?.customer !== '-' || bill.items[0]?.date !== '-') detailsHtml += `<div style="padding:5px 15px; font-size:0.85em; color:#666; background:#f8f9fa; border-bottom:1px solid #eee;">👤 ลูกค้า: <strong>${bill.items[0]?.customer}</strong> | 📅 วันที่: ${bill.items[0]?.date}</div>`;
+                    
                     for (const [catName, items] of Object.entries(itemsByCat)) {
                         detailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${items.length}</span></div>`;
-                        items.forEach(i => {
-                            detailsHtml += `<div class="item-row">
-                                <span style="color:#007bff; font-size:0.85em;">[${i.uid}]</span> 
-                                <strong>${i.name}</strong> 
-                                <span class="badge bg-warning-light">x${i.qty}</span>
-                                <br><small style="color:#666; margin-left:10px;">${i.desc}</small>
-                            </div>`;
-                        });
+                        items.forEach(i => detailsHtml += `<div class="item-row"><span style="color:#007bff; font-size:0.85em;">[${i.uid}]</span> <strong>${i.name}</strong> <span class="badge bg-warning-light">x${i.qty}</span><br><small style="color:#666; margin-left:10px;">${i.desc}</small></div>`);
                     }
 
                     const row = document.createElement('div');
@@ -573,6 +551,7 @@
                             <div style="flex:1">
                                 <strong>${bill.order_id}</strong> 
                                 <span style="font-size:0.8em; color:#888;">(${bill.items.length} รายการ)</span>
+                                <div style="font-size:0.75em; margin-top:2px; ${extraStyle}">สถานะ: ${statusLabel}</div>
                             </div>
                             <select onchange="updateBillStatus('${bill.order_id}', this.value)" onclick="event.stopPropagation()" style="padding:5px; border-radius:5px; border:1px solid #ccc;">
                                 ${customStatuses.map(s => `<option value="${s}" ${s===bill.status?'selected':''}>${s}</option>`).join('')}
@@ -584,219 +563,224 @@
                 container.appendChild(groupDiv);
             }
         }
-        
-        // --- Status Management ---
-        function addCustomStatus() {
-            const v = document.getElementById('status-input').value.trim();
-            if(v && !customStatuses.includes(v)) {
-                customStatuses.push(v);
-                localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
-                renderStatusTags(); renderDashboard();
-                document.getElementById('status-input').value = '';
-            }
-        }
-        
-        function removeCustomStatus(statusToRemove) {
-            if(confirm('ต้องการลบสถานะ "' + statusToRemove + '" หรือไม่?')) {
-                customStatuses = customStatuses.filter(s => s !== statusToRemove);
-                localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
-                renderStatusTags();
-                renderDashboard();
-            }
-        }
 
-        function renderStatusTags() {
-            const container = document.getElementById('status-tags-list');
-            if(container) {
-                container.innerHTML = customStatuses.map(s => 
-                    `<span class="status-tag" style="margin-right:5px; padding:2px 12px; border:1px solid #ddd; border-radius:15px; background:white; display:inline-flex; align-items:center; gap:5px;">
-                        ${s} 
-                        <span onclick="removeCustomStatus('${s}')" style="cursor:pointer; color:red; font-weight:bold; margin-left:5px;">&times;</span>
-                    </span>`
-                ).join('');
-            }
-        }
+        // ==========================================
+        //  UPLOAD HANDLER
+        // ==========================================
+        document.getElementById('dash-upload').onchange = async (e) => {
+            const files = e.target.files;
+            if (!files.length) return;
+            const inputDate = document.getElementById('import-date-dash').value;
+            if(!inputDate) { alert("กรุณาเลือกวันที่รับออเดอร์ก่อน"); e.target.value = ''; return; }
+            if(!confirm(`ยืนยันการนำเข้าข้อมูล?`)) return;
 
-        window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production-${new Date().toLocaleDateString('th-TH')}.png`; link.href = canvas.toDataURL(); link.click(); }); };
-        window.exportKPIPNG = () => { html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `KPI-${activeDept}.png`; link.href = canvas.toDataURL(); link.click(); }); };
-        
-        // --- Copy Summary (Enhanced) ---
+            document.getElementById('loading-overlay').style.display = 'flex';
+            let existingMap = new Map();
+            if(db) {
+                const { data: oldData } = await db.from('production_data').select('order_id, status, import_date, shipped_date');
+                if(oldData) oldData.forEach(r => existingMap.set(r.order_id, { date: r.import_date, status: r.status, shipped_date: r.shipped_date }));
+            }
+
+            let groupedData = {}; 
+            for (let i = 0; i < files.length; i++) {
+                const wb = await readExcelFile(files[i]);
+                const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+                sheetData.forEach(row => {
+                    const rawId = getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID']);
+                    const billId = String(rawId).trim();
+                    if(billId && billId !== 'undefined' && billId !== '') {
+                        const excelStatus = String(getCol(row, ['สถานะ', 'Status', 'Delivery Status']) || '');
+                        const rawShipped = getCol(row, ['เวลาสแกนส่ง', 'วันที่ส่ง', 'Shipped Date', 'Delivery Date', 'Send Date']);
+                        const shippedDateISO = parseToISODate(rawShipped);
+
+                        const itemData = {
+                            uid: getCol(row, ['Item UID', 'UID', 'Item ID']) || '-',
+                            name: getCol(row, ['ชื่อสินค้า', 'Product', 'Product Name', 'Item Name']) || 'ไม่ระบุชื่อ',
+                            cat: getCol(row, ['หมวดหมู่', 'Category', 'Group']) || 'อื่นๆ',
+                            desc: getCol(row, ['รายละเอียดสินค้า', 'Description', 'Detail', 'Desc']) || '-',
+                            qty: getCol(row, ['จำนวน', 'Qty', 'Quantity', 'Amount']) || '1',
+                            customer: getCol(row, ['ชื่อลูกค้า', 'Customer', 'Customer Name']) || '-',
+                            date: getCol(row, ['วันที่สั่งซื้อ', 'Order Date', 'Date']) || '-'
+                        };
+                        if (!groupedData[billId]) groupedData[billId] = { items: [], excelStatus: excelStatus, shippedDate: shippedDateISO };
+                        if (shippedDateISO) groupedData[billId].shippedDate = shippedDateISO;
+                        groupedData[billId].items.push(itemData);
+                    }
+                });
+            }
+
+            let upsertList = [];
+            for (const [bid, data] of Object.entries(groupedData)) {
+                const oldRecord = existingMap.get(bid);
+                const finalImportDate = oldRecord ? oldRecord.date : inputDate;
+                
+                let finalShippedDate = data.shippedDate;
+                if (!finalShippedDate && oldRecord && oldRecord.shipped_date) finalShippedDate = oldRecord.shipped_date;
+                
+                let finalStatus = oldRecord ? oldRecord.status : 'รอผลิต';
+                // Smart Status Update
+                const isExcelShipped = data.excelStatus.includes('จัดส่งแล้ว') || data.excelStatus.toLowerCase().includes('shipped') || !!data.shippedDate;
+                if (isExcelShipped) finalStatus = 'จัดส่งแล้ว';
+                if (finalShippedDate) finalStatus = 'จัดส่งแล้ว';
+
+                upsertList.push({
+                    order_id: bid,
+                    items: data.items,
+                    status: finalStatus,
+                    import_date: finalImportDate,
+                    shipped_date: finalShippedDate
+                });
+            }
+
+            if(upsertList.length > 0 && db) {
+                const chunkSize = 100;
+                for (let i = 0; i < upsertList.length; i += chunkSize) {
+                    const chunk = upsertList.slice(i, i + chunkSize);
+                    await db.from('production_data').upsert(chunk, { onConflict: 'order_id' });
+                }
+                alert(`✅ นำเข้าข้อมูลเรียบร้อย! (${upsertList.length} บิล)`);
+                await loadDashboardDates();
+                document.getElementById('dash-date-filter').value = inputDate;
+                fetchDashboardData();
+            } else {
+                alert('❌ ไม่พบข้อมูลเลขบิล');
+            }
+            document.getElementById('loading-overlay').style.display = 'none';
+            document.getElementById('dash-upload').value = ''; 
+        };
+
+        window.updateBillStatus = async (id, newStatus) => {
+            const idx = rawDataList.findIndex(x => x.order_id === id);
+            if(idx > -1) rawDataList[idx].status = newStatus;
+            
+            // Re-render
+            const selectedDate = document.getElementById('dash-date-filter').value;
+            renderDashboard(selectedDate);
+
+            if(!db) return;
+            await db.from('production_data').update({ status: newStatus }).eq('order_id', id);
+        };
+
+        // --- Copy Summary (Smart Logic) ---
         window.copyFullSummary = () => {
             if(!rawDataList.length) { alert('ไม่มีข้อมูลให้สรุป'); return; }
-
-            const pendingData = rawDataList.filter(r => r.status !== 'จัดส่งแล้ว');
-            const deliveredData = rawDataList.filter(r => r.status === 'จัดส่งแล้ว');
-
-            // Count Totals
-            const totalBills = rawDataList.length;
-            const totalItems = rawDataList.reduce((sum, r) => sum + (r.items ? r.items.length : 0), 0);
+            const selectedDate = document.getElementById('dash-date-filter').value;
             
-            const deliveredBills = deliveredData.length;
-            
-            const pendingBills = pendingData.length;
-            const pendingItems = pendingData.reduce((sum, r) => sum + (r.items ? r.items.length : 0), 0);
+            let incoming = 0;
+            let producedNormal = 0;
+            let producedBacklog = 0;
+            let pending = 0;
+            let late = 0;
 
-            let text = `📋 สรุปงานผลิตวันที่ ${document.getElementById('dash-date-filter').value || 'ล่าสุด'}\n`;
-            text += `งานทั้งหมด: ${totalBills} บิล (${totalItems} รายการ)\n`;
-            text += `จัดส่งแล้ว: ${deliveredBills} บิล (เสร็จสิ้น)\n`;
-            text += `งานค้างผลิต: ${pendingBills} บิล (${pendingItems} รายการ)\n\n`;
-            
-            text += `🛒 แยกตามช่องทาง (งานค้าง):\n`;
-
-            // Group Pending by Channel
-            const groupedByChannel = pendingData.reduce((acc, r) => {
-                const chan = getChannel(r.order_id);
-                if (!acc[chan]) acc[chan] = [];
-                acc[chan].push(r);
-                return acc;
-            }, {});
-
-            for (const [chan, bills] of Object.entries(groupedByChannel)) {
-                const chanItems = bills.reduce((sum, b) => sum + b.items.length, 0);
-                text += `- ${chan}: ${bills.length} บิล (${chanItems} รายการ)\n`;
-
-                // Group by Status inside Channel
-                const groupedByStatus = bills.reduce((acc, b) => {
-                    const st = b.status || 'Wait';
-                    if (!acc[st]) acc[st] = [];
-                    acc[st].push(b);
-                    return acc;
-                }, {});
-
-                for (const [st, subBills] of Object.entries(groupedByStatus)) {
-                    const stItems = subBills.reduce((sum, b) => sum + b.items.length, 0);
-                    text += `   - ${st}: ${subBills.length} บิล (${stItems} รายการ)\n`;
+            rawDataList.forEach(row => {
+                if (row.import_date === selectedDate) {
+                    incoming++;
+                    if (row.shipped_date === selectedDate) producedNormal++;
+                    else if (row.shipped_date && row.shipped_date > selectedDate) late++;
+                    else if (!row.shipped_date) pending++;
+                } else if (row.shipped_date === selectedDate && row.import_date < selectedDate) {
+                    producedBacklog++;
                 }
-            }
+            });
+
+            let text = `📊 สรุปงานผลิตประจำวันที่ ${selectedDate}\n========================\n`;
+            text += `📥 รับงานใหม่: ${incoming} บิล\n`;
+            text += `🚀 ผลิตเสร็จรวม: ${producedNormal + producedBacklog} บิล\n`;
+            text += `   - ✅ ทันแผน (วันนี้): ${producedNormal}\n`;
+            text += `   - 🔥 เคลียร์ค้าง (เก่า): ${producedBacklog}\n\n`;
+            text += `⚠️ คงค้าง/ล่าช้า: ${pending + late} บิล\n`;
+            text += `   - กำลังผลิต: ${pending}\n`;
+            text += `   - ส่งล่าช้า: ${late}\n`;
 
             navigator.clipboard.writeText(text).then(() => alert('คัดลอกสรุปเรียบร้อย!'));
         };
 
-        // ==========================================
-        //  PART 2: KPI LOGIC
-        // ==========================================
-        
+        // --- Status Tag Helpers ---
+        function addCustomStatus() {
+            const v = document.getElementById('status-input').value.trim();
+            if(v && !customStatuses.includes(v)) {
+                customStatuses.push(v); localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
+                renderStatusTags(); renderDashboard(document.getElementById('dash-date-filter').value);
+                document.getElementById('status-input').value = '';
+            }
+        }
+        function removeCustomStatus(s) {
+            if(confirm('ต้องการลบสถานะ "'+s+'" หรือไม่?')) {
+                customStatuses = customStatuses.filter(x => x !== s);
+                localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
+                renderStatusTags(); renderDashboard(document.getElementById('dash-date-filter').value);
+            }
+        }
+        function renderStatusTags() {
+            const c = document.getElementById('status-tags-list');
+            if(c) c.innerHTML = customStatuses.map(s => `<span class="status-tag" style="margin-right:5px; padding:2px 12px; border:1px solid #ddd; border-radius:15px; background:white; display:inline-flex; align-items:center; gap:5px;">${s} <span onclick="removeCustomStatus('${s}')" style="cursor:pointer; color:red; font-weight:bold; margin-left:5px;">&times;</span></span>`).join('');
+        }
+
+        window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production-${new Date().toLocaleDateString('th-TH')}.png`; link.href = canvas.toDataURL(); link.click(); }); };
+        window.exportKPIPNG = () => { html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `KPI-${activeDept}.png`; link.href = canvas.toDataURL(); link.click(); }); };
+
+        // --- KPI Section (Original Logic Preserved) ---
         document.getElementById('kpi-upload').onchange = async (e) => {
             const files = e.target.files;
             if (!files.length) return;
-            
             const selectedDate = document.getElementById('import-date-kpi').value;
-            if(!selectedDate) {
-                alert("กรุณาเลือกวันที่ของข้อมูลก่อน");
-                e.target.value = '';
-                return;
-            }
-
+            if(!selectedDate) { alert("กรุณาเลือกวันที่ของข้อมูลก่อน"); e.target.value = ''; return; }
             document.getElementById('loading-overlay').style.display = 'flex';
-            
             let uploadCount = 0;
-            
             for (let i = 0; i < files.length; i++) {
                 const wb = await readExcelFile(files[i]);
                 for (let sheetName of wb.SheetNames) {
                     const data = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { raw: true });
                     if(data.length === 0) continue;
-
                     let upsertMap = new Map();
-
                     data.forEach(row => {
                         const jobName = getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']);
                         if(!jobName) return;
-
                         const uniqueId = `${sheetName}_${jobName}_${selectedDate}`;
-                        
-                        upsertMap.set(uniqueId, {
-                            id: uniqueId,
-                            dept_name: sheetName,
-                            job_name: jobName,
-                            import_date: selectedDate,
-                            raw_data: row
-                        });
+                        upsertMap.set(uniqueId, { id: uniqueId, dept_name: sheetName, job_name: jobName, import_date: selectedDate, raw_data: row });
                     });
-
                     let upsertData = Array.from(upsertMap.values());
-
-                    if(upsertData.length > 0) {
-                        const { error } = await db.from('kpi_data').upsert(upsertData, { onConflict: 'id' });
-                        if(!error) uploadCount += upsertData.length;
-                    }
+                    if(upsertData.length > 0) { const { error } = await db.from('kpi_data').upsert(upsertData, { onConflict: 'id' }); if(!error) uploadCount += upsertData.length; }
                 }
             }
-            
-            alert(`✅ อัปโหลด KPI เสร็จสิ้น (${uploadCount} รายการ)\nวันที่: ${selectedDate}`);
+            alert(`✅ อัปโหลด KPI เสร็จสิ้น (${uploadCount} รายการ)`);
             document.getElementById('loading-overlay').style.display = 'none';
             document.getElementById('kpi-upload').value = '';
-            
-            await loadKPIDates();
-            document.getElementById('kpi-date-filter').value = selectedDate;
-            fetchKPIDataByDate();
+            await loadKPIDates(); document.getElementById('kpi-date-filter').value = selectedDate; fetchKPIDataByDate();
         };
-
         async function loadKPIDates() {
             if(!db) return;
             const { data, error } = await db.from('kpi_data').select('import_date');
             if(error || !data) return;
-
             const dates = [...new Set(data.map(item => item.import_date))].sort().reverse();
-            
             const select = document.getElementById('kpi-date-filter');
             select.innerHTML = '<option value="">-- เลือกวันที่ --</option>';
-            dates.forEach(d => {
-                const opt = document.createElement('option');
-                opt.value = d;
-                opt.innerText = d;
-                select.appendChild(opt);
-            });
-
-            if(dates.length > 0) {
-                select.value = dates[0];
-                fetchKPIDataByDate();
-            }
+            dates.forEach(d => { const opt = document.createElement('option'); opt.value = d; opt.innerText = d; select.appendChild(opt); });
+            if(dates.length > 0) { select.value = dates[0]; fetchKPIDataByDate(); }
         }
-
         async function fetchKPIDataByDate() {
             const date = document.getElementById('kpi-date-filter').value;
             if(!date) return;
-            
             document.getElementById('kpi-result-area').style.display = 'none';
             const { data, error } = await db.from('kpi_data').select('*').eq('import_date', date);
-            
             if(error) { alert('โหลดข้อมูล KPI ไม่ได้'); return; }
-
             kpiAllDepts = {};
-            data.forEach(record => {
-                const dept = record.dept_name;
-                if(!kpiAllDepts[dept]) kpiAllDepts[dept] = [];
-                kpiAllDepts[dept].push(record.raw_data);
-            });
-
+            data.forEach(record => { const dept = record.dept_name; if(!kpiAllDepts[dept]) kpiAllDepts[dept] = []; kpiAllDepts[dept].push(record.raw_data); });
             document.getElementById('kpi-result-area').style.display = 'block';
             activeDept = Object.keys(kpiAllDepts)[0] || "";
-            renderKPITabs();
-            updateJobFilterDropdown();
-            recalculateKPI();
+            renderKPITabs(); updateJobFilterDropdown(); recalculateKPI();
         }
-
-        function parseTime(val) {
+        function parseTime(val) { 
             if (!val) return null;
             let d = new Date();
-            if (typeof val === 'number') {
-                const totalSec = Math.round(val * 86400);
-                d.setHours(Math.floor(totalSec/3600), Math.floor((totalSec%3600)/60), 0, 0);
-                return d;
-            }
-            if (typeof val === 'string' && val.includes(':')) {
-                const [h, m] = val.split(':').map(Number);
-                d.setHours(h, m, 0, 0); return d;
-            }
+            if (typeof val === 'number') { const totalSec = Math.round(val * 86400); d.setHours(Math.floor(totalSec/3600), Math.floor((totalSec%3600)/60), 0, 0); return d; }
+            if (typeof val === 'string' && val.includes(':')) { const [h, m] = val.split(':').map(Number); d.setHours(h, m, 0, 0); return d; }
             return (val instanceof Date) ? val : null;
         }
-
         function fmtTime(d) { return d ? d.toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) + ' น.' : '-'; }
         function renderKPITabs() { document.getElementById('kpi-tab-bar').innerHTML = Object.keys(kpiAllDepts).map(name => `<div class="tab-item ${name===activeDept?'active':''}" onclick="changeDept('${name}')">${name}</div>`).join(''); }
         function changeDept(name) { activeDept = name; renderKPITabs(); updateJobFilterDropdown(); recalculateKPI(); }
-
-        function updateJobFilterDropdown() {
+        function updateJobFilterDropdown() { 
             if (!activeDept || !kpiAllDepts[activeDept]) return;
             const data = kpiAllDepts[activeDept];
             const select = document.getElementById('kpi-job-filter');
@@ -805,7 +789,6 @@
             select.innerHTML = '<option value="ALL">-- แสดงทั้งหมด --</option>';
             jobs.forEach(job => { const opt = document.createElement('option'); opt.value = job; opt.innerText = job; select.appendChild(opt); });
         }
-
         function getKPIRowData(row) {
             const pStart = parseTime(getCol(row, ['แผนเริ่ม', 'เวลาตัด']));
             const pEnd = parseTime(getCol(row, ['แผนเสร็จ']));
@@ -820,20 +803,16 @@
             let scoreEff = Math.min(100, Math.round((pDuration / aDuration) * 100));
             return { pStart, pEnd, aStart, aEnd, pDuration, aDuration, delayMin, timeExceeded, scoreOnTime, scoreEff };
         }
-
         function recalculateKPI() {
             if(!activeDept) return;
             const data = kpiAllDepts[activeDept];
             const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
             const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
             const filterJob = document.getElementById('kpi-job-filter').value;
-
             document.getElementById('dept-title-png').innerText = `สรุปผลแผนก: ${activeDept} ${filterJob !== 'ALL' ? '(เฉพาะใบงาน: ' + filterJob + ')' : ''}`;
-            
             let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
             const tbody = document.getElementById('kpi-table-body');
             tbody.innerHTML = "";
-            
             data.forEach((row, idx) => {
                 const jobName = getCol(row, ['ชื่อใบงาน', 'ชื่อสินค้า']);
                 if (filterJob !== 'ALL' && jobName !== filterJob) return;
@@ -841,24 +820,12 @@
                 if(!res) return;
                 const finalScore = Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
                 totalWeighted += finalScore; totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
-                
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${count}</td><td><strong>${jobName}</strong></td><td>${getCol(row, ['จำนวน', 'Qty', 'Quantity'])||'-'}</td>
-                    <td>${fmtTime(res.pStart)}</td><td>${fmtTime(res.pEnd)}</td><td>${fmtTime(res.aStart)}</td><td>${fmtTime(res.aEnd)}</td>
-                    <td>${res.aDuration} / ${res.pDuration} น.</td>
-                    <td class="${res.timeExceeded > 0 ? 'text-danger' : ''}">${res.timeExceeded > 0 ? res.timeExceeded + ' น.' : '0'}</td>
-                    <td class="${res.delayMin > 0 ? 'text-danger' : ''}">${res.delayMin > 0 ? res.delayMin + ' น.' : '0'}</td>
-                    <td><span class="badge ${res.scoreOnTime >= 80 ? 'bg-success-light' : (res.scoreOnTime >= 50 ? 'bg-warning-light' : 'bg-danger-light')}">${res.scoreOnTime}%</span></td>
-                    <td><span class="badge bg-success-light">${res.scoreEff}%</span></td><td class="score-box">${finalScore}</td>`;
+                tr.innerHTML = `<td>${count}</td><td><strong>${jobName}</strong></td><td>${getCol(row, ['จำนวน', 'Qty', 'Quantity'])||'-'}</td><td>${fmtTime(res.pStart)}</td><td>${fmtTime(res.pEnd)}</td><td>${fmtTime(res.aStart)}</td><td>${fmtTime(res.aEnd)}</td><td>${res.aDuration} / ${res.pDuration} น.</td><td class="${res.timeExceeded > 0 ? 'text-danger' : ''}">${res.timeExceeded > 0 ? res.timeExceeded + ' น.' : '0'}</td><td class="${res.delayMin > 0 ? 'text-danger' : ''}">${res.delayMin > 0 ? res.delayMin + ' น.' : '0'}</td><td><span class="badge ${res.scoreOnTime >= 80 ? 'bg-success-light' : (res.scoreOnTime >= 50 ? 'bg-warning-light' : 'bg-danger-light')}">${res.scoreOnTime}%</span></td><td><span class="badge bg-success-light">${res.scoreEff}%</span></td><td class="score-box">${finalScore}</td>`;
                 tbody.appendChild(tr);
             });
-            document.getElementById('kpi-summary-cards').innerHTML = `
-                <div class="stat-card" style="border-left-color: var(--purple);"><h3>KPI รวมแผนก</h3><div class="count">${count > 0 ? Math.round(totalWeighted/count) : 0}</div><div class="sub">เฉลี่ยจาก ${count} งาน</div></div>
-                <div class="stat-card" style="border-left-color: var(--success);"><h3>ผลสรุป: ตรงแผน</h3><div class="count">${count > 0 ? Math.round(totalOnTime/count) : 0}%</div><div class="sub">ประสิทธิภาพเวลาส่งมอบ</div></div>
-                <div class="stat-card" style="border-left-color: var(--info);"><h3>ผลสรุป: ความไว</h3><div class="count">${count > 0 ? Math.round(totalEff/count) : 0}%</div><div class="sub">ประสิทธิภาพการผลิต</div></div>
-            `;
+            document.getElementById('kpi-summary-cards').innerHTML = `<div class="stat-card" style="border-left-color: var(--purple);"><h3>KPI รวมแผนก</h3><div class="count">${count > 0 ? Math.round(totalWeighted/count) : 0}</div><div class="sub">เฉลี่ยจาก ${count} งาน</div></div><div class="stat-card" style="border-left-color: var(--success);"><h3>ผลสรุป: ตรงแผน</h3><div class="count">${count > 0 ? Math.round(totalOnTime/count) : 0}%</div><div class="sub">ประสิทธิภาพเวลาส่งมอบ</div></div><div class="stat-card" style="border-left-color: var(--info);"><h3>ผลสรุป: ความไว</h3><div class="count">${count > 0 ? Math.round(totalEff/count) : 0}%</div><div class="sub">ประสิทธิภาพการผลิต</div></div>`;
         }
-
         window.exportKPIToExcel = () => {
             const wb = XLSX.utils.book_new();
             const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
@@ -887,26 +854,19 @@
             XLSX.utils.book_append_sheet(wb, wsSum, "ภาพรวม");
             XLSX.writeFile(wb, `KPI_Summary.xlsx`);
         };
-        
-        // --- Enhanced KPI Copy ---
         window.copyAllDeptsSummary = () => {
             const wOnTimeWeight = parseFloat(document.getElementById('w-ontime').value) / 100;
             const wEffWeight = parseFloat(document.getElementById('w-eff').value) / 100;
             const dateStr = document.getElementById('kpi-date-filter').value;
-            
             let summaryText = `📊 สรุป KPI ประจำวันที่ ${dateStr}\n========================\n`;
-            
             for (let deptName in kpiAllDepts) {
                 let totalWeighted = 0, totalOnTime = 0, totalEff = 0, count = 0;
                 kpiAllDepts[deptName].forEach(row => {
                     const res = getKPIRowData(row);
                     if(!res) return;
                     totalWeighted += Math.round((res.scoreOnTime * wOnTimeWeight) + (res.scoreEff * wEffWeight));
-                    totalOnTime += res.scoreOnTime;
-                    totalEff += res.scoreEff;
-                    count++;
+                    totalOnTime += res.scoreOnTime; totalEff += res.scoreEff; count++;
                 });
-                
                 if(count > 0) {
                     summaryText += `📍 แผนก: ${deptName}\n`;
                     summaryText += `   1. %คะแนนรวม: ${Math.round(totalWeighted/count)}%\n`;
@@ -917,7 +877,6 @@
             }
             navigator.clipboard.writeText(summaryText).then(() => alert('คัดลอกสรุป KPI แล้ว!'));
         };
-
     </script>
 </body>
 </html>
