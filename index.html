@@ -239,7 +239,7 @@
         </div>
     </div>
 
-    <script>
+<script>
         // ==========================================
         //  🔴 ตั้งค่า SUPABASE
         // ==========================================
@@ -251,7 +251,7 @@
         catch (err) { console.error('Supabase init fail', err); }
 
         let rawDataList = [];
-        let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอผลิต", "กำลังผลิต", "รอส่งช่าง", "ติดปัญหา", "รอแพ็ค", "จัดส่งแล้ว"]');
+        let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอผลิต", "กำลังผลิต", "รอส่งช่าง", "ติดปัญหา", "รอแพ็ค", "จัดส่งแล้ว", "จัดส่งแล้ว (ค้างจากวันก่อน)"]');
         let kpiAllDepts = {};
         let activeDept = "";
 
@@ -320,13 +320,11 @@
 
         async function loadDashboardDates() {
             if(!db) return;
-            const { data, error } = await db.from('production_data').select('import_date, shipped_date');
-            if(error) return;
+            // ดึงเฉพาะ import_date (ลบ shipped_date ออกแล้ว)
+            const { data, error } = await db.from('production_data').select('import_date');
+            if(error) { console.error(error); return; }
             let dateSet = new Set();
-            data.forEach(item => {
-                if(item.import_date) dateSet.add(item.import_date);
-                if(item.shipped_date) dateSet.add(item.shipped_date);
-            });
+            data.forEach(item => { if(item.import_date) dateSet.add(item.import_date); });
             const dates = [...dateSet].sort().reverse();
             const select = document.getElementById('dash-date-filter');
             select.innerHTML = '';
@@ -349,8 +347,9 @@
             if (!selectedDate) return;
             const statusDiv = document.getElementById('upload-status');
             statusDiv.innerHTML = '⏳ กำลังดึงข้อมูล...';
-            const { data, error } = await db.from('production_data')
-                .select('*').or(`import_date.eq.${selectedDate},shipped_date.eq.${selectedDate}`);
+            
+            // ดึงข้อมูลทั้งหมดที่เกี่ยวข้อง (ลบ shipped_date จากการ query)
+            const { data, error } = await db.from('production_data').select('*');
             if (error) { alert('โหลดข้อมูลล้มเหลว: ' + error.message); return; }
             rawDataList = data; 
             renderDashboard(selectedDate);
@@ -358,31 +357,97 @@
         }
 
         function renderDashboard(targetDate) {
-            let incomingOrders = 0, producedTodayNormal = 0, producedTodayBacklog = 0;
-            let pendingOnDay = 0, shippedLate = 0;
+            let incomingOrders = 0;      // รับเข้าวันนี้
+            let onTime = 0;              // ทันแผน (ทำเสร็จในวันที่รับเข้า)
+            let clearedBacklog = 0;      // เคลียร์ค้าง (ทำเสร็จวันนี้ แต่รับเข้าวันก่อน)
+            let pendingToday = 0;        // ค้างของวันนี้
+            let pendingBacklog = 0;      // ค้างของวันก่อนหน้า
+            let pendingBacklogDates = {}; // รายละเอียดวันที่ค้าง
+
             let listItems = [];
 
+            // ฟังก์ชันช่วยคำนวณจำนวนรายการ (ตรายางคอนโด / 5)
+            const getRowItemsQty = (items) => {
+                return (items || []).reduce((sum, item) => {
+                    let qty = parseFloat(item.qty) || 0;
+                    if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
+                        qty = qty / 5;
+                    }
+                    return sum + qty;
+                }, 0);
+            };
+
             rawDataList.forEach(row => {
-                const iDate = row.import_date;
-                const sDate = row.shipped_date;
-                if (iDate === targetDate) {
+                const status = row.status || '';
+                const isToday = (row.import_date === targetDate);
+                const finishedOnViewDate = (row.shipped_date === targetDate);
+                
+                // สถานะที่ถือว่า "ยังไม่เสร็จ" ในวันที่กำลังดู (targetDate)
+                // คือ ยังไม่จัดส่ง หรือ ส่งหลังจากวันที่กำลังดูอยู่
+                const isNotFinishedYet = !status.startsWith('จัดส่งแล้ว') || (row.shipped_date && row.shipped_date > targetDate);
+
+                // 1. นับงานรับเข้าวันนี้
+                if (isToday) {
                     incomingOrders++;
-                    if (sDate === targetDate) { producedTodayNormal++; listItems.push(row); } 
-                    else if (sDate && sDate > targetDate) { shippedLate++; listItems.push(row); } 
-                    else if (!sDate) { pendingOnDay++; listItems.push(row); }
                 }
-                if (sDate === targetDate && iDate < targetDate) {
-                    producedTodayBacklog++; listItems.push(row);
+
+                // 2. นับงานผลิตเสร็จ "ในวันที่กำลังดู"
+                if (finishedOnViewDate) {
+                    if (status === 'จัดส่งแล้ว') {
+                        onTime++;
+                    } else if (status === 'จัดส่งแล้ว (ค้างจากวันก่อน)') {
+                        clearedBacklog++;
+                    }
+                }
+
+                // 3. นับงานค้าง (พิจารณาจากวันที่กำลังดู)
+                if (isNotFinishedYet) {
+                    if (isToday) {
+                        pendingToday++;
+                    } else if (row.import_date < targetDate) {
+                        pendingBacklog++;
+                        const d = row.import_date;
+                        pendingBacklogDates[d] = (pendingBacklogDates[d] || 0) + getRowItemsQty(row.items);
+                    }
+                }
+
+                // เก็บรายการที่จะแสดงใน List (เฉพาะงานที่เกี่ยวข้องกับวันที่ดู หรือ งานที่ยังค้างอยู่)
+                if (isToday || finishedOnViewDate || (row.import_date < targetDate && isNotFinishedYet)) {
+                    listItems.push(row);
                 }
             });
 
-            const totalProduced = producedTodayNormal + producedTodayBacklog;
-            const totalPendingView = pendingOnDay + shippedLate;
+            // สร้างข้อความรายละเอียดวันที่ค้าง (📌 08/01: 10 รายการ...)
+            let backlogDetailStr = "";
+            if (pendingBacklog > 0) {
+                const sortedDates = Object.keys(pendingBacklogDates).sort();
+                const dateDetails = sortedDates.map(date => {
+                    const [y, m, d] = date.split('-');
+                    return `${d}/${m}: ${pendingBacklogDates[date]} รายการ`;
+                }).join(', ');
+                backlogDetailStr = `<br><span style="font-size:0.8em; font-weight:normal; color:#666;">📌 ${dateDetails}</span>`;
+            }
 
+            const totalProduced = onTime + clearedBacklog;
+            const totalPending = pendingToday + pendingBacklog;
+
+            // อัปเดต UI Card สรุป
             document.getElementById('dash-main-summary').innerHTML = `
-                <div class="stat-card"><h3>📥 งานรับเข้าวันนี้</h3><div class="count">${incomingOrders}<span class="unit"> บิล</span></div><div class="sub">วันที่: ${targetDate}</div></div>
-                <div class="stat-card" style="border-left-color:var(--success)"><h3 style="color:var(--success)">🚀 ผลงานผลิตวันนี้</h3><div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div><div class="sub">✅ ทันแผน: <b>${producedTodayNormal}</b> | 🔥 เคลียร์ค้าง: <b>${producedTodayBacklog}</b></div></div>
-                <div class="stat-card" style="border-left-color:var(--danger)"><h3 style="color:var(--danger)">⚠️ คงเหลือ/ล่าช้า</h3><div class="count" style="color:var(--danger)">${totalPendingView}<span class="unit"> บิล</span></div><div class="sub">ค้าง: <b>${pendingOnDay}</b> | เสร็จล่าช้า: <b>${shippedLate}</b></div></div>`;
+                <div class="stat-card">
+                    <h3>📥 งานรับเข้าวันนี้</h3>
+                    <div class="count">${incomingOrders}<span class="unit"> บิล</span></div>
+                    <div class="sub">วันที่: ${targetDate}</div>
+                </div>
+                <div class="stat-card" style="border-left-color:var(--success)">
+                    <h3 style="color:var(--success)">🚀 ผลงานผลิตวันนี้</h3>
+                    <div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div>
+                    <div class="sub">✅ ทันแผน: <b>${onTime}</b> | 🔥 เคลียร์ค้าง: <b>${clearedBacklog}</b></div>
+                </div>
+                <div class="stat-card" style="border-left-color:var(--danger)">
+                    <h3 style="color:var(--danger)">⚠️ คงเหลือ/ล่าช้า</h3>
+                    <div class="count" style="color:var(--danger)">${totalPending}<span class="unit"> บิล</span></div>
+                    <div class="sub">วันนี้: <b>${pendingToday}</b> | ค้างเก่า: <b>${pendingBacklog}</b> ${backlogDetailStr}</div>
+                </div>`;
 
             renderBillList(listItems, targetDate);
             updateSubCharts(listItems, targetDate);
@@ -393,17 +458,14 @@
             const pendingStatusStats = {};
             
             list.forEach(r => {
-                const isPendingOrLate = !r.shipped_date || r.shipped_date > viewDate;
-                if(isPendingOrLate){
+                const status = r.status || '';
+                if(!status.startsWith('จัดส่งแล้ว')){
                     const chan = getChannel(r.order_id);
-                    // Pending by Channel
                     if (!pendingChannelStats[chan]) pendingChannelStats[chan] = { bills: 0 };
                     pendingChannelStats[chan].bills++;
                     
-                    // Pending by Status
-                    let s = r.shipped_date && r.shipped_date > viewDate ? "⚠️ ส่งล่าช้า" : r.status;
-                    if (!pendingStatusStats[s]) pendingStatusStats[s] = { bills: 0 };
-                    pendingStatusStats[s].bills++;
+                    if (!pendingStatusStats[status]) pendingStatusStats[status] = { bills: 0 };
+                    pendingStatusStats[status].bills++;
                 }
             });
             
@@ -415,7 +477,7 @@
         }
 
         function renderBillList(data, viewDate) {
-            const pendingData = data.filter(r => r.status !== 'จัดส่งแล้ว' && (!r.shipped_date || r.shipped_date > viewDate));
+            const pendingData = data.filter(r => !(r.status || '').startsWith('จัดส่งแล้ว'));
             const grouped = pendingData.reduce((acc, r) => {
                 const chan = getChannel(r.order_id);
                 if (!acc[chan]) acc[chan] = [];
@@ -437,24 +499,48 @@
                 const body = groupDiv.querySelector('.channel-body');
                 
                 grouped[chan].forEach(bill => {
-                    let statusLabel = bill.status;
-                    let extraStyle = "";
-                    if (bill.shipped_date && bill.shipped_date > viewDate) {
-                        statusLabel = `⚠️ ส่งล่าช้า (จริง: ${bill.shipped_date})`;
-                        extraStyle = "color: #dc3545; font-weight: bold;";
-                    }
+                    // 1. คำนวณจำนวนชิ้นรวมของบิล (ใช้ Logic หาร 5)
+                    const totalItems = (bill.items || []).reduce((sum, item) => {
+                        let qty = parseFloat(item.qty) || 0;
+                        if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
+                            qty = qty / 5;
+                        }
+                        return sum + qty;
+                    }, 0);
+                    
+                    const isBacklog = bill.import_date < viewDate;
+                    const dateDisplay = isBacklog ? `<span style="color:red; font-weight:bold;">(ค้างจาก: ${bill.import_date})</span>` : `<span>(ของวันที่: ${bill.import_date})</span>`;
 
-                    const itemsByCat = (bill.items || []).reduce((acc, i) => { let cat = i.cat || 'สินค้าทั่วไป'; if (!acc[cat]) acc[cat] = []; acc[cat].push(i); return acc; }, {});
+                    const itemsByCat = (bill.items || []).reduce((acc, i) => { 
+                        let cat = i.cat || 'สินค้าทั่วไป'; 
+                        if (!acc[cat]) acc[cat] = []; 
+                        acc[cat].push(i); 
+                        return acc; 
+                    }, {});
+
                     let detailsHtml = '';
                     for (const [catName, items] of Object.entries(itemsByCat)) {
-                        detailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${items.length}</span></div>`;
+                        // 2. คำนวณจำนวนชิ้นแยกตามหมวดหมู่ (Badge สีชมพู)
+                        const catQty = items.reduce((sum, item) => {
+                            let qty = parseFloat(item.qty) || 0;
+                            if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
+                                qty = qty / 5;
+                            }
+                            return sum + qty;
+                        }, 0);
+
+                        detailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${catQty}</span></div>`;
                         items.forEach(i => detailsHtml += `<div class="item-row"><strong>${i.name}</strong> <span class="badge bg-warning-light">x${i.qty}</span><br><small style="color:#666; margin-left:10px;">${i.desc}</small></div>`);
                     }
 
                     const row = document.createElement('div');
                     row.innerHTML = `
                         <div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')">
-                            <div><strong>${bill.order_id}</strong><div style="font-size:0.8em; ${extraStyle}">สถานะ: ${statusLabel}</div></div>
+                            <div>
+                                <strong>${bill.order_id}</strong>
+                                <div style="font-size:0.85em;">สถานะ: ${bill.status} ${dateDisplay}</div>
+                                <div style="font-size:0.8em; color:var(--primary);">📦 รวมสินค้า: ${totalItems} รายการ</div>
+                            </div>
                             <select onchange="updateBillStatus('${bill.order_id}', this.value)" onclick="event.stopPropagation()" style="padding:5px; border-radius:5px; border:1px solid #ccc;">
                                 ${customStatuses.map(s => `<option value="${s}" ${s === bill.status ? 'selected' : ''}>${s}</option>`).join('')}
                             </select>
@@ -465,7 +551,6 @@
                 container.appendChild(groupDiv);
             }
         }
-        
         // ==========================================
         //  UPLOAD HANDLER & ACTIONS
         // ==========================================
@@ -477,11 +562,6 @@
             if(!confirm(`ยืนยันการนำเข้าข้อมูล?`)) return;
 
             document.getElementById('loading-overlay').style.display = 'flex';
-            let existingMap = new Map();
-            if(db) {
-                const { data: oldData } = await db.from('production_data').select('order_id, status, import_date, shipped_date');
-                if(oldData) oldData.forEach(r => existingMap.set(r.order_id, { date: r.import_date, status: r.status, shipped_date: r.shipped_date }));
-            }
 
             let groupedData = {}; 
             for (let file of files) {
@@ -489,35 +569,34 @@
                 const sheetData = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
                 sheetData.forEach(row => {
                     const billId = String(getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID'])).trim();
+                    const statusFromExcel = String(getCol(row, ['สถานะ', 'Status'])).trim();
+
                     if(billId && billId !== 'undefined' && billId !== '') {
-                        const shippedDateISO = parseToISODate(getCol(row, ['เวลาสแกนส่ง', 'วันที่ส่ง', 'Shipped Date']));
                         const itemData = {
                             name: getCol(row, ['ชื่อสินค้า', 'Product', 'Product Name']) || 'ไม่ระบุชื่อ',
                             cat: getCol(row, ['หมวดหมู่', 'Category', 'Group']) || 'อื่นๆ',
                             desc: getCol(row, ['รายละเอียดสินค้า', 'Description']) || '-',
                             qty: getCol(row, ['จำนวน', 'Qty', 'Quantity']) || '1',
                         };
-                        if (!groupedData[billId]) groupedData[billId] = { items: [], shippedDate: shippedDateISO };
-                        if (shippedDateISO) groupedData[billId].shippedDate = shippedDateISO; // Always take the latest found shipped date
+                        if (!groupedData[billId]) {
+                            groupedData[billId] = { items: [], status: statusFromExcel };
+                        }
                         groupedData[billId].items.push(itemData);
                     }
                 });
             }
 
-            let upsertList = [];
-            for (const [bid, data] of Object.entries(groupedData)) {
-                const oldRecord = existingMap.get(bid);
-                let finalStatus = (oldRecord ? oldRecord.status : 'รอผลิต');
-                if (data.shippedDate) finalStatus = 'จัดส่งแล้ว';
-
-                upsertList.push({
+            let upsertList = Object.entries(groupedData).map(([bid, data]) => {
+                const status = data.status || 'รอผลิต';
+                return {
                     order_id: bid,
                     items: data.items,
-                    status: finalStatus,
-                    import_date: oldRecord ? oldRecord.date : inputDate,
-                    shipped_date: data.shippedDate || (oldRecord ? oldRecord.shipped_date : null)
-                });
-            }
+                    status: status,
+                    import_date: inputDate,
+                    // เพิ่มบรรทัดนี้: ถ้าสถานะคือจัดส่งแล้ว ให้บันทึกวันที่นำเข้าเป็นวันที่ส่งงานด้วย
+                    shipped_date: status.startsWith("จัดส่งแล้ว") ? inputDate : null
+                };
+            });
 
             if(upsertList.length > 0 && db) {
                 for (let i = 0; i < upsertList.length; i += 100) {
@@ -527,62 +606,150 @@
                 await loadDashboardDates();
                 document.getElementById('dash-date-filter').value = inputDate;
                 await fetchDashboardData();
-            } else { alert('❌ ไม่พบข้อมูลเลขบิล'); }
+            } else { alert('❌ ไม่พบข้อมูลเลขบิลในไฟล์'); }
             document.getElementById('loading-overlay').style.display = 'none';
             e.target.value = ''; 
         };
 
         window.updateBillStatus = async (id, newStatus) => {
+            const today = new Date().toISOString().split('T')[0];
+            const isFinished = newStatus.startsWith("จัดส่งแล้ว");
+            
             const idx = rawDataList.findIndex(x => x.order_id === id);
-            if(idx > -1) rawDataList[idx].status = newStatus;
+            if(idx > -1) {
+                rawDataList[idx].status = newStatus;
+                rawDataList[idx].shipped_date = isFinished ? today : null;
+            }
+            
             renderDashboard(document.getElementById('dash-date-filter').value);
-            if(db) await db.from('production_data').update({ status: newStatus }).eq('order_id', id);
+            
+            if(db) {
+                await db.from('production_data').update({ 
+                    status: newStatus,
+                    shipped_date: isFinished ? today : null // บันทึกวันที่จบงาน
+                }).eq('order_id', id);
+            }
         };
         
         window.copyFullSummary = () => {
-            if(!rawDataList.length) { alert('ไม่มีข้อมูลให้สรุป'); return; }
             const selectedDate = document.getElementById('dash-date-filter').value;
-            
-            let incoming = 0, producedNormal = 0, producedBacklog = 0, totalPendingLate = 0;
-            const pendingDetails = {};
+            if (!selectedDate) return;
+
+            // ฟังก์ชันช่วยคำนวณจำนวนรายการ (ตรายางคอนโด / 5)
+            const calculateItems = (items) => {
+                return (items || []).reduce((sum, item) => {
+                    let qty = parseFloat(item.qty) || 0;
+                    if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
+                        qty = qty / 5;
+                    }
+                    return sum + qty;
+                }, 0);
+            };
+
+            const createStat = () => ({ bills: 0, items: 0, channels: {} });
+            const addStat = (obj, channel, itemQty) => {
+                obj.bills++;
+                obj.items += itemQty;
+                if (!obj.channels[channel]) obj.channels[channel] = { bills: 0, items: 0 };
+                obj.channels[channel].bills++;
+                obj.channels[channel].items += itemQty;
+            };
+
+            let report = {
+                incoming: { bills: 0, items: 0 },
+                onTime: createStat(),
+                clearedBacklog: createStat(),
+                pendingToday: createStat(),
+                pendingBacklog: { bills: 0, items: 0, dates: {} }
+            };
 
             rawDataList.forEach(row => {
-                const iDate = row.import_date;
-                const sDate = row.shipped_date;
+                const status = row.status || '';
+                const channel = getChannel(row.order_id);
+                const isToday = (row.import_date === selectedDate);
+                const finishedOnViewDate = (row.shipped_date === selectedDate);
+                const isNotFinishedYet = !status.startsWith('จัดส่งแล้ว') || (row.shipped_date && row.shipped_date > selectedDate);
+                
+                const billItemQty = calculateItems(row.items);
 
-                if (iDate === selectedDate) {
-                    incoming++;
-                    if (sDate === selectedDate) producedNormal++;
-                    else {
-                        const isPendingOrLate = !sDate || sDate > selectedDate;
-                        if(isPendingOrLate){
-                            totalPendingLate++;
-                            const chan = getChannel(row.order_id);
-                            const summaryStatus = !sDate ? 'กำลังผลิต' : 'ส่งล่าช้า';
-                            if (!pendingDetails[chan]) pendingDetails[chan] = {};
-                            if (!pendingDetails[chan][summaryStatus]) pendingDetails[chan][summaryStatus] = 0;
-                            pendingDetails[chan][summaryStatus]++;
-                        }
+                // 1. รับเข้าวันนี้
+                if (isToday) {
+                    report.incoming.bills++;
+                    report.incoming.items += billItemQty;
+                }
+
+                // 2. ผลผลิตที่เสร็จในวันที่เลือก
+                if (finishedOnViewDate) {
+                    if (status === 'จัดส่งแล้ว') {
+                        addStat(report.onTime, channel, billItemQty);
+                    } else if (status === 'จัดส่งแล้ว (ค้างจากวันก่อน)') {
+                        addStat(report.clearedBacklog, channel, billItemQty);
                     }
-                } else if (sDate === selectedDate && iDate < selectedDate) {
-                    producedBacklog++;
+                }
+
+                // 3. งานที่ยังค้างอยู่ (ในมุมมองของวันที่เลือก)
+                if (isNotFinishedYet) {
+                    if (isToday) {
+                        addStat(report.pendingToday, channel, billItemQty);
+                    } else if (row.import_date < selectedDate) {
+                        report.pendingBacklog.bills++;
+                        report.pendingBacklog.items += billItemQty;
+                        
+                        const d = row.import_date;
+                        if (!report.pendingBacklog.dates[d]) {
+                            report.pendingBacklog.dates[d] = { totalItems: 0, channels: {} };
+                        }
+                        report.pendingBacklog.dates[d].totalItems += billItemQty;
+                        if (!report.pendingBacklog.dates[d].channels[channel]) {
+                            report.pendingBacklog.dates[d].channels[channel] = { bills: 0, items: 0 };
+                        }
+                        report.pendingBacklog.dates[d].channels[channel].bills++;
+                        report.pendingBacklog.dates[d].channels[channel].items += billItemQty;
+                    }
                 }
             });
-            
-            let text = `📊 สรุปงานผลิตประจำวันที่ ${selectedDate}\n========================\n`;
-            text += `📥 รับงานใหม่: ${incoming} บิล\n`;
-            text += `🚀 ผลิตเสร็จรวม: ${producedNormal + producedBacklog} บิล\n`;
-            text += `   - ✅ ทันแผน (วันนี้): ${producedNormal}\n`;
-            text += `   - 🔥 เคลียร์ค้าง (เก่า): ${producedBacklog}\n\n`;
-            text += `⚠️ คงค้าง/ล่าช้า: ${totalPendingLate} บิล\n`;
 
-            for (const channel in pendingDetails) {
-                text += ` ${channel}\n`;
-                for (const status in pendingDetails[channel]) {
-                    text += `   - ${status}: ${pendingDetails[channel][status]}\n`;
-                }
+            // สร้างข้อความ
+            let text = `📊 สรุปงานผลิตประจำวันที่ ${selectedDate}\n`;
+            text += `========================\n`;
+            text += `📥 รับงานใหม่วันนี้: ${report.incoming.bills} บิล (${report.incoming.items} รายการ)\n`;
+            text += `🚀 ผลผลิตเสร็จรวม: ${report.onTime.bills + report.clearedBacklog.bills} บิล (${report.onTime.items + report.clearedBacklog.items} รายการ)\n`;
+
+            text += `   - ✅ ทันแผน: ${report.onTime.bills} บิล\n`;
+            for (let ch in report.onTime.channels) {
+                const c = report.onTime.channels[ch];
+                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
             }
-            navigator.clipboard.writeText(text).then(() => alert('คัดลอกสรุปเรียบร้อย!'));
+
+            text += `   - 🔥 เคลียร์ค้าง: ${report.clearedBacklog.bills} บิล\n`;
+            for (let ch in report.clearedBacklog.channels) {
+                const c = report.clearedBacklog.channels[ch];
+                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
+            }
+
+            text += `\n⚠️ คงค้างรวม: ${report.pendingToday.bills + report.pendingBacklog.bills} บิล (${report.pendingToday.items + report.pendingBacklog.items} รายการ)\n`;
+            
+            text += `   - 📦 งานของวันนี้: ${report.pendingToday.bills} บิล\n`;
+            for (let ch in report.pendingToday.channels) {
+                const c = report.pendingToday.channels[ch];
+                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
+            }
+
+            text += `   - ⏳ งานค้างสะสม: ${report.pendingBacklog.bills} บิล\n`;
+            const sortedDates = Object.keys(report.pendingBacklog.dates).sort();
+            sortedDates.forEach(date => {
+                const [y, m, d] = date.split('-');
+                const day = report.pendingBacklog.dates[date];
+                text += `      📅 ${d}/${m}: ค้างรวม ${day.totalItems} รายการ\n`;
+                for (let ch in day.channels) {
+                    const c = day.channels[ch];
+                    text += `           ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
+                }
+            });
+
+            navigator.clipboard.writeText(text).then(() => {
+                alert('คัดลอกสรุปฉบับเต็มเรียบร้อยแล้ว!');
+            });
         };
 
         function addCustomStatus() {
