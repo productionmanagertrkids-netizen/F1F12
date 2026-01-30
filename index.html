@@ -29,14 +29,25 @@
         
         .card { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow); margin-bottom: 20px; }
         h2 { margin-top: 0; display: flex; align-items: center; gap: 10px; color: var(--dark); }
-        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin: 15px 0; }
-        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: var(--shadow); border-left: 5px solid var(--primary); }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin: 15px 0; }
+        
+        /* Shipping Carrier Grid */
+        .carrier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .carrier-card { background: white; padding: 15px; border-radius: 10px; box-shadow: var(--shadow); text-align: center; border-bottom: 4px solid #ccc; cursor: pointer; transition: 0.2s; position: relative; }
+        .carrier-card:hover { transform: translateY(-3px); background-color: #f8f9fa; }
+        .carrier-card h4 { margin: 0 0 5px 0; color: #555; font-size: 0.9em; }
+        .carrier-card .num { font-size: 1.5em; font-weight: bold; color: #333; }
+        .late-badge-mini { font-size: 0.75em; color: var(--danger); background: #fff0f0; padding: 2px 8px; border-radius: 10px; display: inline-block; margin-top: 5px; font-weight: 500; border: 1px solid #ffcccc; }
+
+        .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: var(--shadow); border-left: 5px solid var(--primary); transition: transform 0.2s; position: relative; }
+        .stat-card:hover { transform: translateY(-3px); }
+        .clickable-card { cursor: pointer; }
+        .clickable-card:after { content: '🔍 กดเพื่อดูรายละเอียด'; position: absolute; top: 10px; right: 10px; font-size: 0.7em; opacity: 0.5; }
+
         .stat-card h3 { margin: 0; font-size: 0.9em; color: #666; }
         .stat-card .count { font-size: 2.2rem; font-weight: 600; color: var(--primary); margin: 5px 0; }
-        .stat-card .sub { font-size: 0.9em; color: #777; }
-        .stat-card.channel { border-left-color: var(--teal); }
-        .stat-card.channel .count { color: var(--teal); }
-
+        .stat-card .sub { font-size: 0.85em; color: #777; }
+        
         .btn { border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-family: 'Kanit'; display: flex; align-items: center; gap: 8px; font-weight: 500; transition: 0.2s; }
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
@@ -69,9 +80,10 @@
         .tab-bar { display: flex; gap: 5px; overflow-x: auto; }
         .tab-item { padding: 12px 25px; background: #e9ecef; cursor: pointer; border-radius: 8px 8px 0 0; white-space: nowrap; border: 1px solid #ddd; color: #666; }
         .tab-item.active { background: white; border-bottom: 2px solid white; color: var(--primary); font-weight: 600; }
-        table { width: 100%; border-collapse: collapse; background: white; font-size: 0.8em; }
-        th { background: #f4f6f9; padding: 10px; text-align: left; border-bottom: 2px solid #dee2e6; color: #333; position: sticky; top: 0; }
-        td { padding: 8px 10px; border-bottom: 1px solid #eee; }
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 0.85em; }
+        th { background: #f4f6f9; padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6; color: #333; position: sticky; top: 0; z-index: 10; }
+        td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+        tr:hover td { background-color: #f1faff; }
         .badge { padding: 3px 6px; border-radius: 4px; font-size: 0.85em; font-weight: 500; }
         .bg-success-light { background: #d4edda; color: #155724; }
         .bg-warning-light { background: #fff3cd; color: #856404; }
@@ -82,6 +94,55 @@
         #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.9); z-index:9999; display:flex; flex-direction:column; justify-content:center; align-items:center; }
         .loader { border: 5px solid #f3f3f3; border-top: 5px solid #3498db; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #aaa; }
+
+        /* MODAL POPUP STYLE */
+        .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); backdrop-filter: blur(2px); animation: fadeIn 0.2s; }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 0; border-radius: 12px; width: 95%; max-width: 500px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); animation: slideDown 0.3s; position: relative; }
+        .modal-header { padding: 15px 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #f8f9fa; border-radius: 12px 12px 0 0; }
+        .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+        .close-btn { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close-btn:hover { color: black; }
+        
+        /* Dropdown Accordion (ใช้ทั้งใน Popup และรายการบิลย่อย) */
+        .date-accordion { border: 1px solid #dee2e6; border-radius: 8px; margin-bottom: 10px; overflow: hidden; background: #fff; }
+        .date-header { padding: 12px 15px; background: #f8f9fa; cursor: pointer; font-weight: 600; display: flex; justify-content: space-between; align-items: center; transition: 0.2s; border-left: 5px solid #ccc; }
+        .date-header:hover { background: #e2e6ea; }
+        .date-header.active { background: #e3f2fd; }
+        .date-header.late-group { border-left-color: #dc3545; background: #fff5f5; color: #dc3545; }
+        .date-header.today-group { border-left-color: #28a745; color: #28a745; }
+        .date-body { display: none; padding: 0; border-top: 1px solid #eee; }
+        .date-body.show { display: block; }
+        .date-body li { padding: 10px 15px; border-bottom: 1px solid #f1f1f1; list-style: none; }
+        .date-body li:last-child { border-bottom: none; }
+        .arrow-icon { font-size: 0.8em; transition: 0.3s; }
+        .date-header.active .arrow-icon { transform: rotate(180deg); }
+        
+        /* New Style for Main List Accordion (UX/UI Fix) */
+        .date-body.show-list { display: block !important; }
+        .main-list-header.open .arrow-icon { transform: rotate(180deg); }
+        .main-list-header.closed .arrow-icon { transform: rotate(0deg); }
+
+        /* FIX: New styles for the bill item dropdown/popup toggle */
+        .detail-arrow {
+            font-size: 1.2em;
+            color: #666; /* Match the style of the dropdown arrow */
+            transition: transform 0.3s;
+        }
+        .invoice-row:hover .detail-arrow {
+            color: var(--dark);
+        }
+        .detail-arrow.active-arrow { 
+            transform: rotate(180deg); 
+        }
+
+        @keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+        @keyframes slideDown { from {transform: translateY(-20px); opacity: 0;} to {transform: translateY(0); opacity: 1;} }
     </style>
 </head>
 <body>
@@ -89,6 +150,19 @@
     <div id="loading-overlay">
         <div class="loader"></div>
         <h3 style="margin-top:20px; color:#555;">กำลังเชื่อมต่อระบบ Cloud...</h3>
+    </div>
+
+    <!-- MODAL POPUP -->
+    <div id="channel-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 style="margin:0; color:var(--dark);">รายละเอียด</h3>
+                <span class="close-btn" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="popup-channel-list"></div>
+            </div>
+        </div>
     </div>
 
     <nav class="navbar">
@@ -119,8 +193,6 @@
                     
                     <div id="upload-status" style="margin-left:auto; font-weight:bold; color:var(--success);"></div>
                 </div>
-                <div style="margin-top:10px; font-size:0.85em; color:#666;">
-                </div>
             </div>
 
             <!-- DASHBOARD DISPLAY -->
@@ -129,7 +201,6 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
                         <div style="display:flex; align-items:center; gap:15px;">
                             <h2 style="margin: 0;">📊 สรุปภาพรวมการผลิต</h2>
-                            <!-- Filter -->
                             <select id="dash-date-filter" class="form-select" onchange="fetchDashboardData()">
                                 <option value="">-- โหลดวันที่... --</option>
                             </select>
@@ -141,43 +212,40 @@
                         </div>
                     </div>
                     
+                    <!-- NEW: Main Cards -->
                     <div id="dash-main-summary" class="dashboard-grid"></div>
-                    <h2 style="margin-top: 30px;">⏳ ค้างส่งแยกตามช่องทาง:</h2>
-                    <div id="dash-pending-channel-cards" class="dashboard-grid"></div>
-                    <h2 style="margin-top: 30px;">🔍 ค้างส่งแยกตามสถานะ:</h2>
-                    <div id="dash-status-cards" class="dashboard-grid"></div>
+
+                    <!-- NEW: Shipping Summary by Carrier -->
+                    <h2 style="margin-top: 30px;">🚚 สรุปยอดจัดส่งตามขนส่ง (วันนี้):</h2>
+                    <div id="dash-carrier-summary" class="carrier-grid"></div>
+
                 </div>
 
                 <div style="margin-top: 40px; border-top: 2px solid #ddd; padding-top: 25px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <h2>📦 รายการบิล (เฉพาะที่ยังไม่ส่ง)</h2>
-                        <div style="display:flex; gap:10px;">
-                            <input type="text" id="status-input" placeholder="เพิ่มสถานะใหม่..." style="padding:5px 10px; border:1px solid #ddd; border-radius:5px;">
-                            <button class="btn btn-success btn-sm" onclick="addCustomStatus()">+</button>
-                        </div>
+                        <h2>📦 รายการบิล (คงเหลือทั้งหมด)</h2>
+                        <!-- REMOVED: Status input and button -->
                     </div>
-                    <!-- ส่วนแสดง Tags สถานะ -->
-                    <div id="status-tags-list" style="margin: 10px 0;"></div>
+                    <!-- REMOVED: Status tags list -->
                     
+                    <!-- Updated List Container (แยกเป็น 2 กลุ่มหลัก: ลงข้อมูลเสร็จสิ้น, คงเหลือ/ล่าช้า) -->
                     <div id="dash-list-container" style="margin-top: 15px;"></div>
                 </div>
             </div>
         </div>
 
         <!-- ==================================== -->
-        <!-- PAGE 2: KPI (CLOUD STORED)           -->
+        <!-- PAGE 2: KPI                          -->
         <!-- ==================================== -->
         <div id="page-kpi" class="page">
              <div class="card">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2>⏱️ นำเข้าข้อมูล KPI (Admin)</h2>
                     <div style="display: flex; gap: 10px; align-items:center;">
-                        
                         <div style="background:#e2f3f5; padding:5px 10px; border-radius:6px; border:1px solid #bee5eb;">
                             <label for="import-date-kpi" style="font-weight:bold; font-size:0.9em;">📅 วันที่ของข้อมูล:</label>
                             <input type="date" id="import-date-kpi" class="date-input">
                         </div>
-
                         <input type="file" id="kpi-upload" accept=".xlsx, .xls" multiple hidden>
                         <button class="btn btn-primary" onclick="document.getElementById('kpi-upload').click()">📁 เลือกไฟล์ KPI</button>
                     </div>
@@ -188,17 +256,13 @@
             <div id="kpi-result-area" style="display: none;">
                 <div class="weight-setting-box">
                     <strong>📅 เลือกดูวันที่:</strong>
-                    <!-- Filter -->
                     <select id="kpi-date-filter" class="form-select" onchange="fetchKPIDataByDate()">
                         <option value="">-- กำลังโหลดวันที่... --</option>
                     </select>
-
                     <div style="border-left: 2px solid #ddd; margin: 0 15px; height: 30px;"></div>
-
                     <strong>⚙️ ตั้งค่า:</strong>
                     <div class="weight-item">ตรงแผน: <input type="number" id="w-ontime" class="weight-input" value="70" onchange="adjustWeights(this.id)"> %</div>
                     <div class="weight-item">ความไว: <input type="number" id="w-eff" class="weight-input" value="30" onchange="adjustWeights(this.id)"> %</div>
-                    
                     <div style="margin-left: auto; display: flex; gap: 10px;">
                         <button class="btn btn-success" onclick="exportKPIToExcel()">📊 Export Excel</button>
                         <button class="btn btn-warning" onclick="copyAllDeptsSummary()">📋 คัดลอกสรุป</button>
@@ -226,8 +290,7 @@
                                     <th>ลำดับ</th><th>ใบงาน</th><th>จำนวน</th>
                                     <th>แผนเริ่ม</th><th>แผนเสร็จ</th>
                                     <th>เริ่มจริง</th><th>เสร็จจริง</th>
-                                    <th>เกิน</th>
-                                    <th>ล่าช้า</th><th>ตรงแผน (%)</th>
+                                    <th>เกิน</th><th>ล่าช้า</th><th>ตรงแผน (%)</th>
                                     <th>ความไว (%)</th><th>คะแนนรวม</th>
                                 </tr>
                             </thead>
@@ -251,7 +314,8 @@
         catch (err) { console.error('Supabase init fail', err); }
 
         let rawDataList = [];
-        let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอผลิต", "กำลังผลิต", "รอส่งช่าง", "ติดปัญหา", "รอแพ็ค", "จัดส่งแล้ว", "จัดส่งแล้ว (ค้างจากวันก่อน)"]');
+        // เก็บ customStatuses ไว้เพื่อใช้ในการจำลองการอัปเดตสถานะใน DB/Local storage เท่านั้น
+        let customStatuses = JSON.parse(localStorage.getItem('prodStatuses') || '["รอผลิต", "กำลังผลิต", "รอส่งช่าง", "ติดปัญหา", "รอแพ็ค", "จัดส่งแล้ว", "ลงข้อมูลเสร็จสิ้น"]');
         let kpiAllDepts = {};
         let activeDept = "";
 
@@ -260,7 +324,10 @@
         // ==========================================
         function parseToISODate(value) {
             if (!value || value === '-' || String(value).trim() === '-') return null;
-            if (typeof value === 'number') { const dateObj = new Date(Math.round((value - 25569) * 86400 * 1000)); return dateObj.toISOString().split('T')[0]; }
+            if (typeof value === 'number') { 
+                const dateObj = new Date(Math.round((value - 25569) * 86400 * 1000)); 
+                return dateObj.toISOString().split('T')[0]; 
+            }
             const strVal = String(value).trim();
             const datePart = strVal.split(' ')[0];
             if (datePart.match(/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}/)) {
@@ -276,9 +343,19 @@
         const getChannel = (id) => {
             if(!id) return 'OTHER';
             const strId = String(id).trim();
-            if(strId.includes('-')) return strId.split('-')[0].toUpperCase();
             const match = strId.match(/^[A-Za-z]+/);
             return match ? match[0].toUpperCase() : 'OTHER';
+        };
+
+        const getCarrierName = (orderId) => {
+            const ch = getChannel(orderId);
+            if (ch === 'FSPTR') return 'FAST';
+            if (ch === 'TTTR') return 'TT';
+            if (ch === 'LZTR') return 'LZ';
+            if (ch === 'SPTR') return 'SPX';
+            if (['FBTR', 'PUMP'].includes(ch)) return 'FLASH'; 
+            if (ch === 'SHOP') return 'SHOP';
+            return 'OTHER';
         };
 
         const getCol = (row, candidates) => {
@@ -305,10 +382,16 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('import-date-dash').value = today;
             document.getElementById('import-date-kpi').value = today;
-            renderStatusTags();
             await loadDashboardDates();
             await loadKPIDates();
             document.getElementById('loading-overlay').style.display = 'none';
+
+            window.onclick = function(event) {
+                const modal = document.getElementById('channel-modal');
+                if (event.target == modal) {
+                    closeModal();
+                }
+            }
         };
 
         function showPage(pageId, el) {
@@ -320,7 +403,6 @@
 
         async function loadDashboardDates() {
             if(!db) return;
-            // ดึงเฉพาะ import_date (ลบ shipped_date ออกแล้ว)
             const { data, error } = await db.from('production_data').select('import_date');
             if(error) { console.error(error); return; }
             let dateSet = new Set();
@@ -348,7 +430,6 @@
             const statusDiv = document.getElementById('upload-status');
             statusDiv.innerHTML = '⏳ กำลังดึงข้อมูล...';
             
-            // ดึงข้อมูลทั้งหมดที่เกี่ยวข้อง (ลบ shipped_date จากการ query)
             const { data, error } = await db.from('production_data').select('*');
             if (error) { alert('โหลดข้อมูลล้มเหลว: ' + error.message); return; }
             rawDataList = data; 
@@ -357,203 +438,409 @@
         }
 
         function renderDashboard(targetDate) {
-            let incomingOrders = 0;      // รับเข้าวันนี้
-            let onTime = 0;              // ทันแผน (ทำเสร็จในวันที่รับเข้า)
-            let clearedBacklog = 0;      // เคลียร์ค้าง (ทำเสร็จวันนี้ แต่รับเข้าวันก่อน)
-            let pendingToday = 0;        // ค้างของวันนี้
-            let pendingBacklog = 0;      // ค้างของวันก่อนหน้า
-            let pendingBacklogDates = {}; // รายละเอียดวันที่ค้าง
+            let statDataEntry = 0;       
+            let statShippedToday = 0;    
+            let statShippedBacklog = 0;  
+            let pendingBacklog = 0;      
+            let pendingToday = 0;
+            let totalIncoming = 0; 
 
-            let listItems = [];
-
-            // ฟังก์ชันช่วยคำนวณจำนวนรายการ (ตรายางคอนโด / 5)
-            const getRowItemsQty = (items) => {
-                return (items || []).reduce((sum, item) => {
-                    let qty = parseFloat(item.qty) || 0;
-                    if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
-                        qty = qty / 5;
-                    }
-                    return sum + qty;
-                }, 0);
+            // Carrier Stats
+            let carrierStats = { 
+                FLASH: { total: 0, late: 0 }, 
+                FAST: { total: 0, late: 0 }, 
+                TT: { total: 0, late: 0 }, 
+                LZ: { total: 0, late: 0 }, 
+                SPX: { total: 0, late: 0 }, 
+                SHOP: { total: 0, late: 0 }, 
+                OTHER: { total: 0, late: 0 } 
             };
 
             rawDataList.forEach(row => {
-                const status = row.status || '';
+                const status = (row.status || '').trim();
                 const isToday = (row.import_date === targetDate);
                 const finishedOnViewDate = (row.shipped_date === targetDate);
+                const isNotFinishedYet = !row.shipped_date || row.shipped_date > targetDate; 
                 
-                // สถานะที่ถือว่า "ยังไม่เสร็จ" ในวันที่กำลังดู (targetDate)
-                // คือ ยังไม่จัดส่ง หรือ ส่งหลังจากวันที่กำลังดูอยู่
-                const isNotFinishedYet = !status.startsWith('จัดส่งแล้ว') || (row.shipped_date && row.shipped_date > targetDate);
-
-                // 1. นับงานรับเข้าวันนี้
+                // 1. นับยอดรับเข้า
                 if (isToday) {
-                    incomingOrders++;
+                    totalIncoming++;
                 }
 
-                // 2. นับงานผลิตเสร็จ "ในวันที่กำลังดู"
+                // 2. ลงข้อมูลเสร็จสิ้น (ต้องยังไม่เสร็จ)
+                if (status === 'ลงข้อมูลเสร็จสิ้น' && isNotFinishedYet) {
+                    statDataEntry++;
+                }
+
+                // 3. จัดส่งแล้ว
                 if (finishedOnViewDate) {
-                    if (status === 'จัดส่งแล้ว') {
-                        onTime++;
-                    } else if (status === 'จัดส่งแล้ว (ค้างจากวันก่อน)') {
-                        clearedBacklog++;
-                    }
-                }
-
-                // 3. นับงานค้าง (พิจารณาจากวันที่กำลังดู)
-                if (isNotFinishedYet) {
-                    if (isToday) {
-                        pendingToday++;
+                    if (row.import_date === targetDate) {
+                        statShippedToday++;
                     } else if (row.import_date < targetDate) {
-                        pendingBacklog++;
-                        const d = row.import_date;
-                        pendingBacklogDates[d] = (pendingBacklogDates[d] || 0) + getRowItemsQty(row.items);
+                        statShippedBacklog++;
                     }
+
+                    const carrier = getCarrierName(row.order_id);
+                    const stats = carrierStats[carrier] || carrierStats.OTHER;
+                    stats.total++; 
+                    if (row.import_date < targetDate) stats.late++;
                 }
 
-                // เก็บรายการที่จะแสดงใน List (เฉพาะงานที่เกี่ยวข้องกับวันที่ดู หรือ งานที่ยังค้างอยู่)
-                if (isToday || finishedOnViewDate || (row.import_date < targetDate && isNotFinishedYet)) {
-                    listItems.push(row);
+                // 4. งานค้าง (Logic: ไม่นับลงข้อมูลเสร็จสิ้น)
+                if (isNotFinishedYet && status !== 'ลงข้อมูลเสร็จสิ้น') {
+                    if (isToday) pendingToday++;
+                    else if (row.import_date < targetDate) pendingBacklog++;
                 }
             });
 
-            // สร้างข้อความรายละเอียดวันที่ค้าง (📌 08/01: 10 รายการ...)
-            let backlogDetailStr = "";
-            if (pendingBacklog > 0) {
-                const sortedDates = Object.keys(pendingBacklogDates).sort();
-                const dateDetails = sortedDates.map(date => {
-                    const [y, m, d] = date.split('-');
-                    return `${d}/${m}: ${pendingBacklogDates[date]} รายการ`;
-                }).join(', ');
-                backlogDetailStr = `<br><span style="font-size:0.8em; font-weight:normal; color:#666;">📌 ${dateDetails}</span>`;
-            }
-
-            const totalProduced = onTime + clearedBacklog;
-            const totalPending = pendingToday + pendingBacklog;
-
-            // อัปเดต UI Card สรุป
+            // Update UI Cards
             document.getElementById('dash-main-summary').innerHTML = `
-                <div class="stat-card">
-                    <h3>📥 งานรับเข้าวันนี้</h3>
-                    <div class="count">${incomingOrders}<span class="unit"> บิล</span></div>
-                    <div class="sub">วันที่: ${targetDate}</div>
+                <!-- Summary Header -->
+                <div style="grid-column: 1 / -1; background: #e3f2fd; padding: 15px; border-radius: 10px; border: 1px solid #90caf9; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                    <div style="font-size: 1.1em; color: #0d47a1;">
+                        📥 รับงานเข้าระบบวันนี้: <strong>${totalIncoming}</strong> บิล
+                    </div>
+                    <!-- REMOVED: (เสร็จแล้ว ${statShippedToday} / ค้างอยู่ ${pendingToday}) -->
                 </div>
-                <div class="stat-card" style="border-left-color:var(--success)">
-                    <h3 style="color:var(--success)">🚀 ผลงานผลิตวันนี้</h3>
-                    <div class="count" style="color:var(--success)">${totalProduced}<span class="unit"> บิล</span></div>
-                    <div class="sub">✅ ทันแผน: <b>${onTime}</b> | 🔥 เคลียร์ค้าง: <b>${clearedBacklog}</b></div>
-                </div>
-                <div class="stat-card" style="border-left-color:var(--danger)">
-                    <h3 style="color:var(--danger)">⚠️ คงเหลือ/ล่าช้า</h3>
-                    <div class="count" style="color:var(--danger)">${totalPending}<span class="unit"> บิล</span></div>
-                    <div class="sub">วันนี้: <b>${pendingToday}</b> | ค้างเก่า: <b>${pendingBacklog}</b> ${backlogDetailStr}</div>
-                </div>`;
 
-            renderBillList(listItems, targetDate);
-            updateSubCharts(listItems, targetDate);
+                <div class="stat-card clickable-card" style="border-left-color: #17a2b8;" onclick="openDataEntryPopup()">
+                    <h3 style="color: #17a2b8;">📝 ลงข้อมูลเสร็จสิ้น (รอผลิต)</h3>
+                    <div class="count" style="color: #17a2b8;">${statDataEntry}<span class="unit"> บิล</span></div>
+                    <div class="sub">คลิกเพื่อดูช่องทาง</div>
+                </div>
+
+                <div class="stat-card" style="border-left-color: #28a745;">
+                    <h3 style="color: #28a745;">🚀 จัดส่งแล้ว (งานวันนี้)</h3>
+                    <div class="count" style="color: #28a745;">${statShippedToday}<span class="unit"> บิล</span></div>
+                    <div class="sub">เข้า: ${targetDate} | ออก: ${targetDate}</div>
+                </div>
+
+                <div class="stat-card clickable-card" style="border-left-color: #ffc107;" onclick="openBacklogPopup()">
+                    <h3 style="color: #d39e00;">📦 จัดส่งแล้ว (ค้างจากวันก่อน)</h3>
+                    <div class="count" style="color: #d39e00;">${statShippedBacklog}<span class="unit"> บิล</span></div>
+                    <div class="sub">คลิกเพื่อดูรายละเอียด</div>
+                </div>
+                
+                <!-- การ์ดคงเหลือ/ล่าช้า (แดง) -->
+                <div class="stat-card clickable-card" style="border-left-color: #dc3545;" onclick="openPendingPopup()">
+                    <h3 style="color: #dc3545;">⚠️ คงเหลือ/ล่าช้า (ทั้งหมด)</h3>
+                    <div class="count" style="color: #dc3545;">${pendingToday + pendingBacklog}<span class="unit"> บิล</span></div>
+                    <div class="sub">วันนี้: <b>${pendingToday}</b> | ค้างเก่า: <b>${pendingBacklog}</b></div>
+                </div>
+            `;
+
+            const createCarrierCard = (name, data, color) => `
+                <div class="carrier-card" onclick="openCarrierPopup('${name}')" style="border-bottom-color: ${color};">
+                    <h4>${name}</h4>
+                    <div class="num">${data.total}</div>
+                    ${data.late > 0 ? `<div class="late-badge-mini">ล่าช้า ${data.late}</div>` : ''}
+                </div>
+            `;
+
+            document.getElementById('dash-carrier-summary').innerHTML = `
+                ${createCarrierCard('FLASH', carrierStats.FLASH, '#FFC400')}
+                ${createCarrierCard('FAST', carrierStats.FAST, '#1a73e8')}
+                ${createCarrierCard('TT', carrierStats.TT, '#000000')}
+                ${createCarrierCard('LZ', carrierStats.LZ, '#0f146d')}
+                ${createCarrierCard('SPX', carrierStats.SPX, '#ee4d2d')}
+                ${createCarrierCard('SHOP', carrierStats.SHOP, '#555')}
+            `;
+
+            renderBillList(rawDataList, targetDate);
         }
 
-        function updateSubCharts(list, viewDate) {
-            const pendingChannelStats = {};
-            const pendingStatusStats = {};
-            
-            list.forEach(r => {
-                const status = r.status || '';
-                if(!status.startsWith('จัดส่งแล้ว')){
-                    const chan = getChannel(r.order_id);
-                    if (!pendingChannelStats[chan]) pendingChannelStats[chan] = { bills: 0 };
-                    pendingChannelStats[chan].bills++;
-                    
-                    if (!pendingStatusStats[status]) pendingStatusStats[status] = { bills: 0 };
-                    pendingStatusStats[status].bills++;
-                }
-            });
-            
-            document.getElementById('dash-pending-channel-cards').innerHTML = Object.entries(pendingChannelStats).map(([chan, d]) => `
-                <div class="stat-card" style="border-left-color:var(--warning)"><h3>${chan}</h3><div class="count" style="color:var(--warning)">${d.bills}<span class="unit"> บิล</span></div></div>`).join('') || '<div class="card" style="grid-column: 1 / -1;">ไม่มีงานค้าง</div>';
+        // ==========================================
+        //  HELPER: สร้าง Dropdown List (ใช้สำหรับ Popup เท่านั้น)
+        // ==========================================
+        function renderGroupedList(list, containerId, targetDate, isCarrierPopup = false) {
+            const listContainer = document.getElementById(containerId);
+            listContainer.innerHTML = '';
 
-            document.getElementById('dash-status-cards').innerHTML = Object.entries(pendingStatusStats).map(([s, d]) => `
-                <div class="stat-card" style="border-left-color:var(--info)"><h3>${s}</h3><div class="count" style="color:var(--info)">${d.bills}<span class="unit"> บิล</span></div></div>`).join('') || '<div class="card" style="grid-column: 1 / -1;">ไม่มีงานค้าง</div>';
-        }
-
-        function renderBillList(data, viewDate) {
-            const pendingData = data.filter(r => !(r.status || '').startsWith('จัดส่งแล้ว'));
-            const grouped = pendingData.reduce((acc, r) => {
-                const chan = getChannel(r.order_id);
-                if (!acc[chan]) acc[chan] = [];
-                acc[chan].push(r);
-                return acc;
-            }, {});
-
-            const container = document.getElementById('dash-list-container');
-            container.innerHTML = '';
-            if (Object.keys(grouped).length === 0) {
-                container.innerHTML = '<div class="card">ไม่มีรายการบิลที่ยังไม่จัดส่ง</div>';
+            if (list.length === 0) {
+                listContainer.innerHTML = '<div style="text-align:center; padding:20px; color:#999;">ไม่มีรายการ</div>';
                 return;
             }
 
-            for (let chan in grouped) {
-                const groupDiv = document.createElement('div');
-                groupDiv.className = 'channel-group';
-                groupDiv.innerHTML = `<div class="channel-header" onclick="this.nextElementSibling.style.display=(this.nextElementSibling.style.display==='none'?'block':'none')">${chan} <span>${grouped[chan].length} บิล ▼</span></div><div class="channel-body" style="display:block;"></div>`;
-                const body = groupDiv.querySelector('.channel-body');
+            const groups = list.reduce((acc, item) => {
+                const d = item.import_date;
+                if (!acc[d]) acc[d] = [];
+                acc[d].push(item);
+                return acc;
+            }, {});
+
+            const sortedDates = Object.keys(groups).sort();
+
+            sortedDates.forEach(date => {
+                const items = groups[date];
+                const isLate = date < targetDate;
+                const groupClass = isLate ? 'late-group' : 'today-group';
+                const groupLabel = isLate ? `⚠️ ค้างจาก: ${date}` : `📅 วันที่นำเข้า: ${date}`;
                 
-                grouped[chan].forEach(bill => {
-                    // 1. คำนวณจำนวนชิ้นรวมของบิล (ใช้ Logic หาร 5)
-                    const totalItems = (bill.items || []).reduce((sum, item) => {
-                        let qty = parseFloat(item.qty) || 0;
-                        if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
-                            qty = qty / 5;
-                        }
+                const detailsHTML = document.createElement('div');
+                detailsHTML.className = 'date-accordion';
+                detailsHTML.innerHTML = `
+                    <div class="date-header ${groupClass}" onclick="this.classList.toggle('active'); this.nextElementSibling.classList.toggle('show');">
+                        <span>${groupLabel} <span style="font-size:0.8em; opacity:0.8;">(${items.length} บิล)</span></span>
+                        <span class="arrow-icon">▼</span>
+                    </div>
+                    <div class="date-body"></div>
+                `;
+
+                const bodyContainer = detailsHTML.querySelector('.date-body');
+
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    
+                    let badgeHTML = '';
+                    if(isCarrierPopup) {
+                        badgeHTML = isLate 
+                            ? '<span class="badge bg-danger-light">ล่าช้า</span>' 
+                            : '<span class="badge bg-success-light">ปกติ</span>';
+                    } else {
+                        const ch = getChannel(item.order_id);
+                        let color = '#666';
+                        const chUp = ch.toUpperCase();
+                        if(['FBTR','PUMP'].includes(chUp)) color='#FFC400';
+                        else if(chUp=='FSPTR') color='#1a73e8';
+                        else if(chUp=='SPTR') color='#ee4d2d';
+                        else if(chUp=='LZTR') color='#0f146d';
+                        badgeHTML = `<span class="badge" style="background:${color}; color:white;">${ch}</span>`;
+                    }
+
+                    // แสดงสถานะที่ชัดเจน (เช่น ลงข้อมูลเสร็จสิ้น, รอผลิต)
+                    const statusText = item.status || 'รอผลิต';
+                    let statusBadge = `<span class="badge" style="background:#e9ecef; color:#495057; font-weight:normal;">${statusText}</span>`;
+
+                    const totalItems = (item.items || []).reduce((sum, i) => { 
+                        let qty = parseFloat(i.qty) || 0;
+                        if (String(i.name).startsWith("ตรายางคอนโด")) qty = qty / 5;
                         return sum + qty;
                     }, 0);
                     
-                    const isBacklog = bill.import_date < viewDate;
-                    const dateDisplay = isBacklog ? `<span style="color:red; font-weight:bold;">(ค้างจาก: ${bill.import_date})</span>` : `<span>(ของวันที่: ${bill.import_date})</span>`;
+                    let subText = `สินค้า: ${totalItems} รายการ`; 
+                    
+                    if(isLate && !isCarrierPopup) { 
+                        const d1 = new Date(date);
+                        const d2 = new Date(targetDate);
+                        const diff = Math.ceil(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
+                        subText += ` <span style="color:red; margin-left:5px;">(ค้าง ${diff} วัน)</span>`;
+                    }
 
-                    const itemsByCat = (bill.items || []).reduce((acc, i) => { 
-                        let cat = i.cat || 'สินค้าทั่วไป'; 
-                        if (!acc[cat]) acc[cat] = []; 
-                        acc[cat].push(i); 
-                        return acc; 
-                    }, {});
+                    li.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong style="color:#333;">${item.order_id}</strong>
+                            <div style="display:flex; gap:5px;">
+                                ${badgeHTML}
+                                ${statusBadge}
+                            </div>
+                        </div>
+                        <div style="font-size:0.85em; color:#666; margin-top:3px;">${subText}</div>
+                    `;
+                    bodyContainer.appendChild(li);
+                });
 
-                    let detailsHtml = '';
-                    for (const [catName, items] of Object.entries(itemsByCat)) {
-                        // 2. คำนวณจำนวนชิ้นแยกตามหมวดหมู่ (Badge สีชมพู)
-                        const catQty = items.reduce((sum, item) => {
+                listContainer.appendChild(detailsHTML);
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('channel-modal').style.display = 'none';
+        }
+
+        // ==========================================
+        //  POPUP FUNCTIONS
+        // ==========================================
+
+        function openDataEntryPopup() {
+            const targetDate = document.getElementById('dash-date-filter').value;
+            const list = rawDataList.filter(r => (r.status || '').trim() === 'ลงข้อมูลเสร็จสิ้น' && (!r.shipped_date || r.shipped_date > targetDate));
+            document.querySelector('.modal-header h3').innerText = `📝 ลงข้อมูลเสร็จสิ้น (${list.length} บิล)`;
+            renderGroupedList(list, 'popup-channel-list', targetDate, false);
+            document.getElementById('channel-modal').style.display = 'block';
+        }
+
+        function openBacklogPopup() {
+            const targetDate = document.getElementById('dash-date-filter').value;
+            const list = rawDataList.filter(r => 
+                r.shipped_date === targetDate && 
+                r.import_date < targetDate
+            );
+            document.querySelector('.modal-header h3').innerText = `📦 เคลียร์งานค้าง (${list.length} บิล)`;
+            renderGroupedList(list, 'popup-channel-list', targetDate, false);
+            document.getElementById('channel-modal').style.display = 'block';
+        }
+
+        function openPendingPopup() {
+            const targetDate = document.getElementById('dash-date-filter').value;
+            const list = rawDataList.filter(r => {
+                const status = (r.status || '').trim();
+                const isNotFinished = !r.shipped_date || r.shipped_date > targetDate;
+                return isNotFinished && status !== 'ลงข้อมูลเสร็จสิ้น';
+            });
+
+            document.querySelector('.modal-header h3').innerText = `⚠️ คงเหลือ/ล่าช้า (${list.length} บิล)`;
+            renderGroupedList(list, 'popup-channel-list', targetDate, false);
+            document.getElementById('channel-modal').style.display = 'block';
+        }
+        
+        function openCarrierPopup(carrierType) {
+            const targetDate = document.getElementById('dash-date-filter').value;
+            const list = rawDataList.filter(r => 
+                r.shipped_date === targetDate && 
+                getCarrierName(r.order_id) === carrierType
+            );
+            const lateCount = list.filter(i => i.import_date < targetDate).length;
+            document.querySelector('.modal-header h3').innerText = `🚚 ${carrierType}: ${list.length} บิล (ล่าช้า ${lateCount})`;
+            renderGroupedList(list, 'popup-channel-list', targetDate, true);
+            document.getElementById('channel-modal').style.display = 'block';
+        }
+
+        // ==========================================
+        //  RENDER LIST (แยกประเภทตาม 2 กลุ่มหลัก - Accordion)
+        // ==========================================
+        function renderBillList(data, viewDate) {
+            const container = document.getElementById('dash-list-container');
+            container.innerHTML = ''; 
+
+            // 1. Separate the data into the two primary groups
+            const dataEntryList = [];
+            const pendingList = []; 
+
+            data.forEach(r => {
+                const status = (r.status || '').trim();
+                const isNotFinished = !r.shipped_date || r.shipped_date > viewDate; 
+                
+                if (!isNotFinished) return; 
+
+                if (status === 'ลงข้อมูลเสร็จสิ้น') {
+                    dataEntryList.push(r);
+                } else {
+                    pendingList.push(r);
+                }
+            });
+
+            // 2. Helper to create the inner list structure (grouped by import_date)
+            const createInnerListHtml = (list, isPendingGroup) => {
+                if (list.length === 0) {
+                    return '<div style="padding:10px; color:#999; text-align:center;">ไม่มีรายการในกลุ่มนี้</div>';
+                }
+
+                const groups = list.reduce((acc, item) => {
+                    const d = item.import_date;
+                    if (!acc[d]) acc[d] = [];
+                    acc[d].push(item);
+                    return acc;
+                }, {});
+
+                const sortedDates = Object.keys(groups).sort();
+                let html = '';
+
+                sortedDates.forEach(date => {
+                    const items = groups[date];
+                    const isLate = date < viewDate;
+                    const groupClass = isLate ? 'late-group' : 'today-group';
+                    const groupLabel = isLate 
+                        ? `⚠️ ค้างจาก: ${date}` 
+                        : (isPendingGroup ? `📅 รับเข้าวันนี้: ${date}` : `วันที่นำเข้า: ${date}`);
+                    
+                    let itemsHtml = '';
+                    items.forEach(bill => {
+                        const totalItems = (bill.items || []).reduce((sum, item) => {
                             let qty = parseFloat(item.qty) || 0;
-                            if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
-                                qty = qty / 5;
-                            }
+                            if (String(item.name).startsWith("ตรายางคอนโด")) qty = qty / 5;
                             return sum + qty;
                         }, 0);
 
-                        detailsHtml += `<div class="cat-group-header">📁 ${catName} <span class="cat-badge">${catQty}</span></div>`;
-                        items.forEach(i => detailsHtml += `<div class="item-row"><strong>${i.name}</strong> <span class="badge bg-warning-light">x${i.qty}</span><br><small style="color:#666; margin-left:10px;">${i.desc}</small></div>`);
-                    }
+                        // สร้างรายการสินค้า (Detail)
+                        let detailsHtml = '';
+                        const itemsByCat = (bill.items || []).reduce((acc, i) => { 
+                            let cat = i.cat || 'สินค้าทั่วไป'; 
+                            if (!acc[cat]) acc[cat] = []; acc[cat].push(i); return acc; 
+                        }, {});
 
-                    const row = document.createElement('div');
-                    row.innerHTML = `
-                        <div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail')">
-                            <div>
-                                <strong>${bill.order_id}</strong>
-                                <div style="font-size:0.85em;">สถานะ: ${bill.status} ${dateDisplay}</div>
-                                <div style="font-size:0.8em; color:var(--primary);">📦 รวมสินค้า: ${totalItems} รายการ</div>
+                        for (const [catName, subItems] of Object.entries(itemsByCat)) {
+                            detailsHtml += `<div class="cat-group-header">📁 ${catName}</div>`;
+                            subItems.forEach(i => {
+                                let displayQty = parseFloat(i.qty) || 0;
+                                if (String(i.name).startsWith("ตรายางคอนโด")) {
+                                    displayQty = displayQty / 5;
+                                }
+                                detailsHtml += `<div class="item-row"><strong>${i.name}</strong> <span class="badge bg-warning-light">x${displayQty}</span><br><small style="color:#666;">${i.desc}</small></div>`;
+                            });
+                        }
+
+                        itemsHtml += `
+                            <div class="date-row-wrapper">
+                                <div class="invoice-row" onclick="this.nextElementSibling.classList.toggle('active-detail'); this.querySelector('.detail-arrow').classList.toggle('active-arrow');">
+                                    <div>
+                                        <strong>${bill.order_id}</strong>
+                                        <div style="font-size:0.85em;">สถานะ: ${bill.status}</div>
+                                        <div style="font-size:0.8em; color:var(--primary);">📦 รวมสินค้า: ${totalItems} รายการ</div>
+                                    </div>
+                                    <!-- REMOVED: Select Status Dropdown -->
+                                    <span class="detail-arrow">▼</span>
+                                </div>
+                                <div class="invoice-details">${detailsHtml}</div>
                             </div>
-                            <select onchange="updateBillStatus('${bill.order_id}', this.value)" onclick="event.stopPropagation()" style="padding:5px; border-radius:5px; border:1px solid #ccc;">
-                                ${customStatuses.map(s => `<option value="${s}" ${s === bill.status ? 'selected' : ''}>${s}</option>`).join('')}
-                            </select>
+                        `;
+                    });
+
+                    html += `
+                        <div class="date-accordion">
+                            <div class="date-header ${groupClass}" onclick="this.classList.toggle('active'); this.nextElementSibling.classList.toggle('show');">
+                                <span>${groupLabel} <span style="font-size:0.8em; opacity:0.8;">(${items.length} บิล)</span></span>
+                                <span class="arrow-icon">▼</span>
+                            </div>
+                            <div class="date-body" style="display: ${isLate ? 'none' : 'block'};">
+                                ${itemsHtml}
+                            </div>
                         </div>
-                        <div class="invoice-details">${detailsHtml}</div>`;
-                    body.appendChild(row);
+                    `;
                 });
-                container.appendChild(groupDiv);
-            }
+                return html;
+            };
+
+            // 3. Render the two main groups
+            const toggleAccordion = (el) => {
+                el.classList.toggle('open');
+                el.classList.toggle('closed');
+                el.nextElementSibling.classList.toggle('show-list');
+            };
+
+            const dataEntryHtml = `
+                <div class="card" style="border-left: 5px solid #17a2b8; margin-bottom: 20px;">
+                    <div class="date-header main-list-header open" style="background:#f0f7ff; border-left:none; border-radius: 8px; margin: -20px -25px 0 -25px; padding: 15px 25px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="toggleAccordion(this)">
+                        <h2 style="margin: 0; color: #17a2b8; display:flex; align-items:center; gap:8px;">📝 รายการ: ลงข้อมูลเสร็จสิ้น (${dataEntryList.length} บิล)</h2>
+                        <span class="arrow-icon">▼</span>
+                    </div>
+                    <div class="date-body show-list" style="margin-top: 15px; padding-top:0;">
+                        ${createInnerListHtml(dataEntryList, false)}
+                    </div>
+                </div>
+            `;
+
+            const pendingHtml = `
+                <div class="card" style="border-left: 5px solid #dc3545; margin-bottom: 20px;">
+                    <div class="date-header main-list-header open" style="background:#fff5f5; border-left:none; border-radius: 8px; margin: -20px -25px 0 -25px; padding: 15px 25px; cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="toggleAccordion(this)">
+                        <h2 style="margin: 0; color: #dc3545; display:flex; align-items:center; gap:8px;"><span style="font-size:1.1em; color:#ffc107;">⚠️</span> รายการ: คงเหลือ/ล่าช้า (${pendingList.length} บิล)</h2>
+                        <span class="arrow-icon">▼</span>
+                    </div>
+                    <div class="date-body show-list" style="margin-top: 15px; padding-top:0;">
+                        ${createInnerListHtml(pendingList, true)}
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML = dataEntryHtml + pendingHtml;
         }
-        // ==========================================
-        //  UPLOAD HANDLER & ACTIONS
-        // ==========================================
+        
+        // This function is defined globally to be used by the onclick in renderBillList
+        window.toggleAccordion = (el) => {
+            el.classList.toggle('open');
+            el.classList.toggle('closed');
+            el.nextElementSibling.classList.toggle('show-list');
+        };
+
         document.getElementById('dash-upload').onchange = async (e) => {
             const files = e.target.files;
             if (!files.length) return;
@@ -570,6 +857,11 @@
                 sheetData.forEach(row => {
                     const billId = String(getCol(row, ['เลขบิล', 'Order ID', 'Order No', 'No.', 'ID'])).trim();
                     const statusFromExcel = String(getCol(row, ['สถานะ', 'Status'])).trim();
+                    const scanTimeRaw = getCol(row, ['เวลาสแกนส่ง', 'Shipped Time', 'Scan Time', 'Date', 'G']); 
+                    let shippedDateVal = null;
+                    if(scanTimeRaw && scanTimeRaw !== '-' && String(scanTimeRaw).trim() !== '') {
+                        shippedDateVal = parseToISODate(scanTimeRaw);
+                    }
 
                     if(billId && billId !== 'undefined' && billId !== '') {
                         const itemData = {
@@ -579,7 +871,7 @@
                             qty: getCol(row, ['จำนวน', 'Qty', 'Quantity']) || '1',
                         };
                         if (!groupedData[billId]) {
-                            groupedData[billId] = { items: [], status: statusFromExcel };
+                            groupedData[billId] = { items: [], status: statusFromExcel, shipped_date: shippedDateVal };
                         }
                         groupedData[billId].items.push(itemData);
                     }
@@ -587,14 +879,15 @@
             }
 
             let upsertList = Object.entries(groupedData).map(([bid, data]) => {
-                const status = data.status || 'รอผลิต';
+                let status = data.status || 'รอผลิต';
+                let shipped = data.shipped_date;
+                if (!shipped && status.startsWith("จัดส่งแล้ว")) { shipped = inputDate; }
                 return {
                     order_id: bid,
                     items: data.items,
                     status: status,
                     import_date: inputDate,
-                    // เพิ่มบรรทัดนี้: ถ้าสถานะคือจัดส่งแล้ว ให้บันทึกวันที่นำเข้าเป็นวันที่ส่งงานด้วย
-                    shipped_date: status.startsWith("จัดส่งแล้ว") ? inputDate : null
+                    shipped_date: shipped 
                 };
             });
 
@@ -612,170 +905,26 @@
         };
 
         window.updateBillStatus = async (id, newStatus) => {
+            // NOTE: This function is kept for backward compatibility and is not currently used by the UI elements in the list.
             const today = new Date().toISOString().split('T')[0];
             const isFinished = newStatus.startsWith("จัดส่งแล้ว");
-            
             const idx = rawDataList.findIndex(x => x.order_id === id);
             if(idx > -1) {
                 rawDataList[idx].status = newStatus;
                 rawDataList[idx].shipped_date = isFinished ? today : null;
             }
-            
             renderDashboard(document.getElementById('dash-date-filter').value);
-            
             if(db) {
-                await db.from('production_data').update({ 
-                    status: newStatus,
-                    shipped_date: isFinished ? today : null // บันทึกวันที่จบงาน
-                }).eq('order_id', id);
+                await db.from('production_data').update({ status: newStatus, shipped_date: isFinished ? today : null }).eq('order_id', id);
             }
         };
         
-        window.copyFullSummary = () => {
-            const selectedDate = document.getElementById('dash-date-filter').value;
-            if (!selectedDate) return;
-
-            // ฟังก์ชันช่วยคำนวณจำนวนรายการ (ตรายางคอนโด / 5)
-            const calculateItems = (items) => {
-                return (items || []).reduce((sum, item) => {
-                    let qty = parseFloat(item.qty) || 0;
-                    if (String(item.name || '').trim().startsWith("ตรายางคอนโด")) {
-                        qty = qty / 5;
-                    }
-                    return sum + qty;
-                }, 0);
-            };
-
-            const createStat = () => ({ bills: 0, items: 0, channels: {} });
-            const addStat = (obj, channel, itemQty) => {
-                obj.bills++;
-                obj.items += itemQty;
-                if (!obj.channels[channel]) obj.channels[channel] = { bills: 0, items: 0 };
-                obj.channels[channel].bills++;
-                obj.channels[channel].items += itemQty;
-            };
-
-            let report = {
-                incoming: { bills: 0, items: 0 },
-                onTime: createStat(),
-                clearedBacklog: createStat(),
-                pendingToday: createStat(),
-                pendingBacklog: { bills: 0, items: 0, dates: {} }
-            };
-
-            rawDataList.forEach(row => {
-                const status = row.status || '';
-                const channel = getChannel(row.order_id);
-                const isToday = (row.import_date === selectedDate);
-                const finishedOnViewDate = (row.shipped_date === selectedDate);
-                const isNotFinishedYet = !status.startsWith('จัดส่งแล้ว') || (row.shipped_date && row.shipped_date > selectedDate);
-                
-                const billItemQty = calculateItems(row.items);
-
-                // 1. รับเข้าวันนี้
-                if (isToday) {
-                    report.incoming.bills++;
-                    report.incoming.items += billItemQty;
-                }
-
-                // 2. ผลผลิตที่เสร็จในวันที่เลือก
-                if (finishedOnViewDate) {
-                    if (status === 'จัดส่งแล้ว') {
-                        addStat(report.onTime, channel, billItemQty);
-                    } else if (status === 'จัดส่งแล้ว (ค้างจากวันก่อน)') {
-                        addStat(report.clearedBacklog, channel, billItemQty);
-                    }
-                }
-
-                // 3. งานที่ยังค้างอยู่ (ในมุมมองของวันที่เลือก)
-                if (isNotFinishedYet) {
-                    if (isToday) {
-                        addStat(report.pendingToday, channel, billItemQty);
-                    } else if (row.import_date < selectedDate) {
-                        report.pendingBacklog.bills++;
-                        report.pendingBacklog.items += billItemQty;
-                        
-                        const d = row.import_date;
-                        if (!report.pendingBacklog.dates[d]) {
-                            report.pendingBacklog.dates[d] = { totalItems: 0, channels: {} };
-                        }
-                        report.pendingBacklog.dates[d].totalItems += billItemQty;
-                        if (!report.pendingBacklog.dates[d].channels[channel]) {
-                            report.pendingBacklog.dates[d].channels[channel] = { bills: 0, items: 0 };
-                        }
-                        report.pendingBacklog.dates[d].channels[channel].bills++;
-                        report.pendingBacklog.dates[d].channels[channel].items += billItemQty;
-                    }
-                }
-            });
-
-            // สร้างข้อความ
-            let text = `📊 สรุปงานผลิตประจำวันที่ ${selectedDate}\n`;
-            text += `========================\n`;
-            text += `📥 รับงานใหม่วันนี้: ${report.incoming.bills} บิล (${report.incoming.items} รายการ)\n`;
-            text += `🚀 ผลผลิตเสร็จรวม: ${report.onTime.bills + report.clearedBacklog.bills} บิล (${report.onTime.items + report.clearedBacklog.items} รายการ)\n`;
-
-            text += `   - ✅ ทันแผน: ${report.onTime.bills} บิล\n`;
-            for (let ch in report.onTime.channels) {
-                const c = report.onTime.channels[ch];
-                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
-            }
-
-            text += `   - 🔥 เคลียร์ค้าง: ${report.clearedBacklog.bills} บิล\n`;
-            for (let ch in report.clearedBacklog.channels) {
-                const c = report.clearedBacklog.channels[ch];
-                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
-            }
-
-            text += `\n⚠️ คงค้างรวม: ${report.pendingToday.bills + report.pendingBacklog.bills} บิล (${report.pendingToday.items + report.pendingBacklog.items} รายการ)\n`;
-            
-            text += `   - 📦 งานของวันนี้: ${report.pendingToday.bills} บิล\n`;
-            for (let ch in report.pendingToday.channels) {
-                const c = report.pendingToday.channels[ch];
-                text += `        ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
-            }
-
-            text += `   - ⏳ งานค้างสะสม: ${report.pendingBacklog.bills} บิล\n`;
-            const sortedDates = Object.keys(report.pendingBacklog.dates).sort();
-            sortedDates.forEach(date => {
-                const [y, m, d] = date.split('-');
-                const day = report.pendingBacklog.dates[date];
-                text += `      📅 ${d}/${m}: ค้างรวม ${day.totalItems} รายการ\n`;
-                for (let ch in day.channels) {
-                    const c = day.channels[ch];
-                    text += `           ${ch}: ${c.bills} บิล (${c.items} รายการ)\n`;
-                }
-            });
-
-            navigator.clipboard.writeText(text).then(() => {
-                alert('คัดลอกสรุปฉบับเต็มเรียบร้อยแล้ว!');
-            });
-        };
-
-        function addCustomStatus() {
-            const v = document.getElementById('status-input').value.trim();
-            if(v && !customStatuses.includes(v)) {
-                customStatuses.push(v); localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
-                renderStatusTags(); renderDashboard(document.getElementById('dash-date-filter').value);
-                document.getElementById('status-input').value = '';
-            }
-        }
-        function removeCustomStatus(s) {
-            if(confirm(`ต้องการลบสถานะ "${s}" หรือไม่?`)) {
-                customStatuses = customStatuses.filter(x => x !== s);
-                localStorage.setItem('prodStatuses', JSON.stringify(customStatuses));
-                renderStatusTags(); renderDashboard(document.getElementById('dash-date-filter').value);
-            }
-        }
-        function renderStatusTags() {
-            const c = document.getElementById('status-tags-list');
-            c.innerHTML = customStatuses.map(s => `<span style="margin-right:5px; padding:2px 12px; border:1px solid #ddd; border-radius:15px; background:white; display:inline-flex; align-items:center; gap:5px;">${s} <span onclick="removeCustomStatus('${s}')" style="cursor:pointer; color:red; font-weight:bold; margin-left:5px;">&times;</span></span>`).join('');
-        }
+        window.copyFullSummary = () => { alert('ฟังก์ชัน Copy กำลังปรับปรุงให้เข้ากับรูปแบบใหม่'); };
 
         window.exportDashboardPNG = () => { html2canvas(document.getElementById('capture-zone-dash'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `Production_Dashboard.png`; link.href = canvas.toDataURL(); link.click(); }); };
         window.exportKPIPNG = () => { html2canvas(document.getElementById('capture-zone-kpi'), { scale: 2 }).then(canvas => { const link = document.createElement('a'); link.download = `KPI-${activeDept}.png`; link.href = canvas.toDataURL(); link.click(); }); };
 
-        // --- KPI Section ---
+        // --- KPI Section (NO CHANGES) ---
         document.getElementById('kpi-upload').onchange = async (e) => {
             const files = e.target.files;
             if (!files.length) return;
@@ -861,18 +1010,13 @@
             const onTimeInput = document.getElementById('w-ontime');
             const effInput = document.getElementById('w-eff');
             let onTimeValue = parseInt(onTimeInput.value) || 0;
-            
             if (changedInputId === 'w-ontime') {
-                if (onTimeValue > 100) onTimeValue = 100;
-                if (onTimeValue < 0) onTimeValue = 0;
-                onTimeInput.value = onTimeValue;
-                effInput.value = 100 - onTimeValue;
-            } else { // w-eff changed
+                if (onTimeValue > 100) onTimeValue = 100; if (onTimeValue < 0) onTimeValue = 0;
+                onTimeInput.value = onTimeValue; effInput.value = 100 - onTimeValue;
+            } else { 
                 let effValue = parseInt(effInput.value) || 0;
-                if (effValue > 100) effValue = 100;
-                if (effValue < 0) effValue = 0;
-                effInput.value = effValue;
-                onTimeInput.value = 100 - effValue;
+                if (effValue > 100) effValue = 100; if (effValue < 0) effValue = 0;
+                effInput.value = effValue; onTimeInput.value = 100 - effValue;
             }
             recalculateKPI();
         }
